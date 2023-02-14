@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.*
 import android.os.Build
 import android.util.AttributeSet
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import com.example.myapplication.view.DeviceUtil
@@ -11,7 +12,7 @@ import kotlin.math.*
 
 private const val TOP_SIDE = 1
 private const val BOTTOM_SIDE = 2
-private const val OUT_LEN = 35
+private const val OUT_LEN = 40f
 @Suppress("DEPRECATION")
 class RealFlipView @JvmOverloads constructor(
     context: Context,
@@ -24,13 +25,14 @@ class RealFlipView @JvmOverloads constructor(
     // 横屏的时候采用
     // 每一页的宽高应该提前计算好
 
-    // 1. 获取翻转的是那一页
+    // 需要准备6页数据
     var mLeftBottomBitmap: Bitmap? = null
+    var mLeftMiddleBitmap: Bitmap? = null
     var mLeftTopBitmap: Bitmap? = null
     var mRightTopBitmap: Bitmap? = null
+    var mRightMiddleBitmap: Bitmap? = null
     var mRightBottomBitmap: Bitmap? = null
 
-    // flipPath 弄混了，明天处理一下
     private val flipPath = Path()
     private val reUsePath = Path()
 
@@ -79,12 +81,13 @@ class RealFlipView @JvmOverloads constructor(
     private var mColorMatrixFilter: ColorMatrixColorFilter
     private val mMatrixArray = floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 1.0f)
     private val mMatrix: Matrix
+    private val r = DeviceUtil.dip2px(context, 13f)
 
     init {
         val array = floatArrayOf(0.55f, 0f, 0f, 0f, 80.0f, 0f, 0.55f, 0f, 0f, 80.0f, 0f, 0f, 0.55f, 0f, 80.0f, 0f, 0f, 0f, 0.2f, 0f)
         val cm = ColorMatrix()
         cm.set(array)
-        this.mColorMatrixFilter = ColorMatrixColorFilter(cm)
+        mColorMatrixFilter = ColorMatrixColorFilter(cm)
         mMatrix = Matrix()
     }
 
@@ -118,23 +121,31 @@ class RealFlipView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
+        flipSide = BOTTOM_SIDE
+        curFlipPage = 1
+        mTouchPoint.x = 1710f
+        mTouchPoint.y = 696f
+        isStopScroll = false
+        mCorner.x = mRightPageRBPoint.x
+        mCorner.y = mRightPageRBPoint.y
+
         if (isStopScroll) {
             resetPoint()
         } else {
             calculatePoint()
         }
         // 1. 绘制非翻页的一边
-        //drawNoFlipSide(canvas)
-        // 2. 绘制中间区域和阴影
+        drawNoFlipSide(canvas)
+        // 2. 绘制翻页的一边
+        drawFlipPageContent(canvas)
+        // 3. 绘制中间区域和阴影
         drawBookMiddleArea(canvas)
-        // 3. 绘制翻页的一边
-        //drawFlipPageContent(canvas)
         // 4. 绘制翻页下面一页露出的区域和阴影
-        //drawFlipPageBottomPageContent(canvas)
+        drawFlipPageBottomPageContent(canvas)
         // 5. 绘制翻页的两侧阴影
-        //drawTwoSideShadow(canvas)
+        drawTwoSideShadow(canvas)
         // 6. 绘制翻页的背部内容和阴影
-        //drawBackContentAndShadow(canvas)
+        drawBackContentAndShadow(canvas)
     }
 
     private fun drawBackContentAndShadow(canvas: Canvas){
@@ -145,13 +156,24 @@ class RealFlipView @JvmOverloads constructor(
         reUsePath.lineTo(mBezierEnd2.x, mBezierEnd2.y)
         reUsePath.lineTo(mTouchPoint.x, mTouchPoint.y)
         reUsePath.lineTo(mBezierEnd1.x, mBezierEnd1.y)
+        if(curFlipPage == 1) {
+            reUsePath.offset(-mRightPageLTPoint.x, 0f)
+        }
         reUsePath.close()
 
+
+        // 这个offset根据页面调整
+
         canvas.save()
+        if(curFlipPage == 1) {
+            canvas.translate(mRightPageLTPoint.x, mRightPageLTPoint.y)
+            flipPath.offset(-mRightPageLTPoint.x, 0f)
+        }
         canvas.clipPath(flipPath)
         canvas.clipPath(reUsePath)
-        mPaint.colorFilter = mColorMatrixFilter
+        //mPaint.colorFilter = mColorMatrixFilter
         canvas.drawColor(bgColor)
+
         // 2. 绘制在白色区域
         // 这里的公式其实是一个沿着 y = kx 的对称，理解起来有点难度，
         // 公式的计算地址：https://juejin.cn/post/6844903504671145992
@@ -164,38 +186,69 @@ class RealFlipView @JvmOverloads constructor(
         mMatrixArray[4] = 1 - 2 * curSin * curSin
         mMatrix.reset()
         mMatrix.setValues(mMatrixArray)
-        mMatrix.preTranslate(-mBezierControl1.x, -mBezierControl1.y)
-        mMatrix.postTranslate(mBezierControl1.x, mBezierControl1.y)
-        mRightBottomBitmap?.let {
-            canvas.drawBitmap(it, mMatrix, mPaint)
+        if(curFlipPage == 0) {
+            mMatrix.preTranslate(-(mBezierControl1.x), -mBezierControl1.y)
+            mMatrix.postTranslate(mBezierControl1.x, mBezierControl1.y)
+        } else {
+            mMatrix.preTranslate(-(mBezierControl1.x - mRightPageLTPoint.x), -mBezierControl1.y)
+            mMatrix.postTranslate(mBezierControl1.x - mRightPageLTPoint.x, mBezierControl1.y)
         }
+        if(curFlipPage == 0) {
+            mRightMiddleBitmap?.let {
+                canvas.drawBitmap(it, mMatrix, mPaint)
+            }
+        } else {
+            mRightMiddleBitmap?.let {
+                canvas.drawBitmap(it, mMatrix, mPaint)
+            }
+        }
+
         mPaint.colorFilter = null
+
         // 3. 设置阴影
-        val minDis = (abs(mBezierStart1.x - mBezierControl1.x) / 2).coerceAtMost(abs(mBezierStart2.y - mBezierControl2.y) / 2)
+        if(curFlipPage == 1) {
+            canvas.translate(-mRightPageLTPoint.x, -mRightPageLTPoint.y)
+        }
+        val minDis = mTouchDis / 8
+        val rectHeight = hypot((mBezierStart1.x - mBezierStart2.x).toDouble(), (mBezierStart1.y - mBezierStart2.y).toDouble())
         val left: Float
         val right: Float
-        val finalDegree: Double
+        val bottom: Float
+        val top: Float
+        val rotateDegree: Float
         if(curFlipPage == 0) {
             left = mBezierStart1.x - minDis - 1
             right = mBezierStart1.x + 1
-            finalDegree = if(flipSide == TOP_SIDE) {
-                mDegree
+            if(flipSide == TOP_SIDE) {
+                top = mBezierStart1.y
+                bottom = top + rectHeight.toFloat()
+                rotateDegree = (90 - mDegree.toFloat())
             } else {
-                -mDegree
+                bottom = mBezierStart1.y
+                top = bottom - rectHeight.toFloat()
+                rotateDegree = -(90 - mDegree.toFloat())
             }
+        } else {
+            left = mBezierStart1.x - 1
+            right = mBezierStart1.x + minDis + 1
+            if(flipSide == TOP_SIDE) {
+                top = mBezierStart1.y
+                bottom = top + rectHeight.toFloat()
+                rotateDegree = -(90 - mDegree.toFloat())
+            } else {
+                bottom = mBezierStart1.y
+                top = bottom - rectHeight.toFloat()
+                rotateDegree = (90 - mDegree.toFloat())
+            }
+        }
+        if(curFlipPage == 0) {
             mPaint.shader = getGradient(left, mBezierStart1.y, right, mBezierStart1.y, shadowColors)
         } else {
-            left = mBezierStart1.x - minDis - 1
-            right = mBezierStart1.x + minDis + 1
-            finalDegree = if(flipSide == TOP_SIDE) {
-                -mDegree
-            } else {
-                mDegree
-            }
             mPaint.shader = getGradient(left, mBezierStart1.y, right, mBezierStart1.y, shadowReverseColors)
         }
-        canvas.rotate(finalDegree.toFloat(), mBezierStart1.x, mBezierStart1.y)
-        canvas.drawPaint(mPaint)
+
+        canvas.rotate(rotateDegree, mBezierStart1.x, mBezierStart1.y)
+        canvas.drawRect(left, top, right, bottom, mPaint)
         canvas.restore()
     }
 
@@ -225,7 +278,7 @@ class RealFlipView @JvmOverloads constructor(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 canvas.clipOutPath(flipPath)
             } else {
-                canvas.clipPath(flipPath, Region.Op.XOR)
+                canvas.clipPath(flipPath, Region.Op.DIFFERENCE)
             }
             canvas.clipPath(reUsePath)
         } catch (e: Exception) {
@@ -250,11 +303,22 @@ class RealFlipView @JvmOverloads constructor(
                 -deOne
             }
         }
-        canvas.rotate(targetDeOne.toFloat(), mTouchPoint.x, mTouchPoint.y)
+        canvas.rotate(targetDeOne.toFloat(), outPoint.x, outPoint.y)
         val colors = if (curFlipPage == 0) shadowColors else shadowReverseColors
-        mPaint.shader =
-            getGradient(outPoint.x, mBezierControl1.y, mTouchPoint.x, mBezierControl1.y, colors)
-        canvas.drawPaint(mPaint)
+        var bottomFirst = 0f
+        var rightFirst = 0f
+        if(curFlipPage == 0) {
+            rightFirst = (outPoint.x - sin(mDegree) * OUT_LEN - 1).toFloat()
+        } else {
+            rightFirst = (outPoint.x + sin(mDegree) * OUT_LEN + 1).toFloat()
+        }
+        if(flipSide == TOP_SIDE) {
+            bottomFirst = outPoint.y - abs(mCorner.x - mBezierControl1.x)
+        } else {
+            bottomFirst = outPoint.y + abs(mCorner.x - mBezierControl1.x)
+        }
+        mPaint.shader = getGradient(outPoint.x, mBezierControl1.y, rightFirst, mBezierControl1.y, colors)
+        canvas.drawRect(outPoint.x, outPoint.y, rightFirst, bottomFirst ,mPaint)
         canvas.restore()
 
         canvas.save()
@@ -268,7 +332,7 @@ class RealFlipView @JvmOverloads constructor(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 canvas.clipOutPath(flipPath)
             } else {
-                canvas.clipPath(flipPath, Region.Op.XOR)
+                canvas.clipPath(flipPath, Region.Op.DIFFERENCE)
             }
             canvas.clipPath(reUsePath)
         } catch (e: Exception) {
@@ -293,11 +357,23 @@ class RealFlipView @JvmOverloads constructor(
                 deTwo
             }
         }
-        canvas.rotate(targetDeTwo.toFloat(), mTouchPoint.x, mTouchPoint.y)
-        val colorsTwo = if (curFlipPage == 0) shadowColors else shadowReverseColors
+        canvas.rotate(targetDeTwo.toFloat(), outPoint.x, outPoint.y)
+
+        var topSecond = 0f
+        var rightSecond = 0f
+        if(curFlipPage == 0) {
+            rightSecond = (outPoint.x - cos(mDegree) * OUT_LEN).toFloat() - 1
+        } else {
+            rightSecond = (outPoint.x + cos(mDegree) * OUT_LEN).toFloat() + 1
+        }
+        if(flipSide == TOP_SIDE) {
+            topSecond = outPoint.y + abs(mCorner.y - mBezierControl2.y)
+        } else {
+            topSecond = outPoint.y - abs(mCorner.y - mBezierControl2.y)
+        }
         mPaint.shader =
-            getGradient(outPoint.x, mBezierControl1.y, mTouchPoint.x, mBezierControl1.y, colorsTwo)
-        canvas.drawPaint(mPaint)
+            getGradient(outPoint.x, 0f, rightSecond, 0f, colors)
+        canvas.drawRect(outPoint.x, outPoint.y, rightSecond, topSecond ,mPaint)
         canvas.restore()
     }
 
@@ -307,30 +383,36 @@ class RealFlipView @JvmOverloads constructor(
         if(curFlipPage == 0) {
             reUsePath.reset()
             reUsePath.addRect(mLeftPageLTPoint.x, mLeftPageLTPoint.y, mLeftPageRBPoint.x, mLeftPageRBPoint.y, Path.Direction.CW)
+            canvas.clipPath(reUsePath)
             canvas.clipPath(flipPath)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                canvas.clipOutPath(reUsePath)
-            } else {
-                canvas.clipPath(reUsePath, Region.Op.UNION)
-            }
             mLeftBottomBitmap?.let {
-                canvas.drawBitmap(it, 0f, 0f, mPaint)
+                canvas.drawBitmap(it, mLeftPageLTPoint.x, mLeftPageLTPoint.y, null)
             }
         } else if(curFlipPage == 1) {
             reUsePath.reset()
             reUsePath.addRect(mRightPageLTPoint.x, mRightPageLTPoint.y, mRightPageRBPoint.x, mRightPageRBPoint.y, Path.Direction.CW)
+            canvas.clipPath(reUsePath)
             canvas.clipPath(flipPath)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                canvas.clipOutPath(reUsePath)
-            } else {
-                canvas.clipPath(reUsePath, Region.Op.UNION)
-            }
             mRightBottomBitmap?.let {
-                canvas.drawBitmap(it, 0f, 0f, mPaint)
+                canvas.drawBitmap(it, mRightPageLTPoint.x, mRightPageLTPoint.y, null)
             }
         }
         // 绘制阴影
-        canvas.rotate(mDegree.toFloat(),mBezierStart1.x, mBezierStart1.y)
+        val rotateDegree = if(curFlipPage == 0) {
+            if(flipSide == TOP_SIDE) {
+                (90 - mDegree.toFloat())
+            } else {
+                -(90 - mDegree.toFloat())
+            }
+        } else {
+            if(flipSide == TOP_SIDE) {
+                -(90 - mDegree.toFloat())
+            } else {
+                (90 - mDegree.toFloat())
+            }
+        }
+        canvas.clipPath(flipPath)
+        canvas.rotate(rotateDegree, mBezierStart1.x, mBezierStart1.y)
         var left = 0f
         var right = 0f
         var top = 0f
@@ -346,7 +428,7 @@ class RealFlipView @JvmOverloads constructor(
                 bottom = mBezierStart1.y
                 top = mBezierStart1.y - rectHeight.toFloat()
             }
-            mPaint.shader = getGradient(left, top, right, bottom, shadowColors)
+            mPaint.shader = getGradient(left, top, right, top, shadowReverseColors)
         } else if(curFlipPage == 1) {
             left = mBezierStart1.x
             right = left + mTouchDis / 4
@@ -357,26 +439,23 @@ class RealFlipView @JvmOverloads constructor(
                 bottom = mBezierStart1.y
                 top = mBezierStart1.y - rectHeight.toFloat()
             }
-            mPaint.shader = getGradient(left, top, right, bottom, shadowColors)
+            mPaint.shader = getGradient(left, top, right, top, shadowColors)
         }
         canvas.drawRect(left, top, right, bottom, mPaint)
         canvas.restore()
     }
 
     private fun drawFlipPageContent(canvas: Canvas) {
-        flipPath.reset()
-        flipPath.moveTo(mBezierStart1.x, mBezierStart1.y)
-        flipPath.quadTo(mBezierControl1.x, mBezierControl1.y, mBezierEnd1.x, mBezierEnd1.y)
-        flipPath.lineTo(mTouchPoint.x, mTouchPoint.y)
-        flipPath.lineTo(mBezierEnd2.x, mBezierEnd2.y)
-        flipPath.quadTo(mBezierControl2.x, mBezierControl2.y, mBezierStart2.x, mBezierStart2.y)
-        flipPath.lineTo(mCorner.x, mCorner.y)
-        flipPath.close()
-
-        reUsePath.reset()
         canvas.save()
         if (curFlipPage == 0) {
-            reUsePath.addRect(mLeftPageLTPoint.x, mLeftPageLTPoint.y, mLeftPageRBPoint.x, mLeftPageRBPoint.y, Path.Direction.CW)
+            reUsePath.reset()
+            reUsePath.moveTo(mLeftPageRBPoint.x - r, mLeftPageLTPoint.y)
+            reUsePath.arcTo( mLeftPageRBPoint.x - 2 * r, mLeftPageLTPoint.y, mLeftPageRBPoint.x, mLeftPageLTPoint.y + 2 * r, -90f, 90f, false)
+            reUsePath.lineTo(mLeftPageRBPoint.x, mLeftPageRBPoint.y - r)
+            reUsePath.arcTo(mLeftPageRBPoint.x - 2 * r, mLeftPageRBPoint.y - 2 * r,mLeftPageRBPoint.x, mLeftPageRBPoint.y, 0f, 90f, false)
+            reUsePath.lineTo(mLeftPageLTPoint.x, mLeftPageRBPoint.y)
+            reUsePath.lineTo(mLeftPageLTPoint.x, mLeftPageLTPoint.y)
+            reUsePath.close()
             canvas.clipPath(reUsePath)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 canvas.clipOutPath(flipPath)
@@ -384,19 +463,25 @@ class RealFlipView @JvmOverloads constructor(
                 canvas.clipPath(flipPath, Region.Op.DIFFERENCE)
             }
             mLeftTopBitmap?.let {
-                canvas.drawBitmap(it, 0f, 0f, null)
+                canvas.drawBitmap(it, mLeftPageLTPoint.x, mLeftPageLTPoint.y, null)
             }
         } else {
-            reUsePath.addRect(mRightPageLTPoint.x, mRightPageLTPoint.y, mRightPageLTPoint.x, mRightPageLTPoint.y, Path.Direction.CW)
+            reUsePath.reset()
+            reUsePath.moveTo(mRightPageLTPoint.x + r, mRightPageLTPoint.y)
+            reUsePath.arcTo(mRightPageLTPoint.x, mRightPageLTPoint.y, mRightPageLTPoint.x + 2 * r, mRightPageLTPoint.y + 2 * r, -90f, -90f, false)
+            reUsePath.lineTo(mRightPageLTPoint.x, mRightPageRBPoint.y - r)
+            reUsePath.arcTo(mRightPageLTPoint.x, mRightPageRBPoint.y - 2 * r,mRightPageLTPoint.x + 2 * r, mRightPageRBPoint.y, -180f, -90f, false)
+            reUsePath.lineTo(mRightPageRBPoint.x, mRightPageRBPoint.y)
+            reUsePath.lineTo(mRightPageRBPoint.x, mRightPageLTPoint.y)
+            reUsePath.close()
             canvas.clipPath(reUsePath)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 canvas.clipOutPath(flipPath)
             } else {
                 canvas.clipPath(flipPath, Region.Op.DIFFERENCE)
             }
-            canvas.clipPath(reUsePath)
             mRightTopBitmap?.let {
-                canvas.drawBitmap(it, 0f, 0f, null)
+                canvas.drawBitmap(it, mRightPageLTPoint.x, mRightPageLTPoint.y, null)
             }
         }
         canvas.restore()
@@ -404,7 +489,6 @@ class RealFlipView @JvmOverloads constructor(
 
     private fun drawBookMiddleArea(canvas: Canvas){
         val r = DeviceUtil.dip2px(context, 13f)
-
 
         reUsePath.reset()
         reUsePath.moveTo(mLeftPageRBPoint.x - r, mLeftPageLTPoint.y)
@@ -431,10 +515,16 @@ class RealFlipView @JvmOverloads constructor(
     }
 
     private fun drawNoFlipSide(canvas: Canvas) {
-        reUsePath.reset()
         canvas.save()
         if(curFlipPage == 0) {
-            reUsePath.addRect(mRightPageLTPoint.x, mRightPageLTPoint.y, mRightPageRBPoint.x, mRightPageRBPoint.y, Path.Direction.CW)
+            reUsePath.reset()
+            reUsePath.moveTo(mRightPageLTPoint.x + r, mRightPageLTPoint.y)
+            reUsePath.arcTo(mRightPageLTPoint.x, mRightPageLTPoint.y, mRightPageLTPoint.x + 2 * r, mRightPageLTPoint.y + 2 * r, -90f, -90f, false)
+            reUsePath.lineTo(mRightPageLTPoint.x, mRightPageRBPoint.y - r)
+            reUsePath.arcTo(mRightPageLTPoint.x, mRightPageRBPoint.y - 2 * r,mRightPageLTPoint.x + 2 * r, mRightPageRBPoint.y, -180f, -90f, false)
+            reUsePath.lineTo(mRightPageRBPoint.x, mRightPageRBPoint.y)
+            reUsePath.lineTo(mRightPageRBPoint.x, mRightPageLTPoint.y)
+            reUsePath.close()
             canvas.clipPath(reUsePath)
             mRightTopBitmap?.let { b->
                 if(!b.isRecycled) {
@@ -442,7 +532,15 @@ class RealFlipView @JvmOverloads constructor(
                 }
             }
         } else {
-            reUsePath.addRect(mLeftPageLTPoint.x, mLeftPageLTPoint.y, mLeftPageRBPoint.x, mLeftPageRBPoint.y, Path.Direction.CW)
+            reUsePath.reset()
+            reUsePath.moveTo(mLeftPageRBPoint.x - r, mLeftPageLTPoint.y)
+            reUsePath.arcTo( mLeftPageRBPoint.x - 2 * r, mLeftPageLTPoint.y, mLeftPageRBPoint.x, mLeftPageLTPoint.y + 2 * r, -90f, 90f, false)
+            reUsePath.lineTo(mLeftPageRBPoint.x, mLeftPageRBPoint.y - r)
+            reUsePath.arcTo(mLeftPageRBPoint.x - 2 * r, mLeftPageRBPoint.y - 2 * r,mLeftPageRBPoint.x, mLeftPageRBPoint.y, 0f, 90f, false)
+            reUsePath.lineTo(mLeftPageLTPoint.x, mLeftPageRBPoint.y)
+            reUsePath.lineTo(mLeftPageLTPoint.x, mLeftPageLTPoint.y)
+            reUsePath.close()
+            canvas.clipPath(reUsePath)
             mLeftTopBitmap?.let { b->
                 if(!b.isRecycled) {
                     canvas.drawBitmap(b, mLeftPageLTPoint.x, mLeftPageLTPoint.y, null)
@@ -472,8 +570,18 @@ class RealFlipView @JvmOverloads constructor(
         mBezierVertex2.x = (mBezierStart2.x + 2 * mBezierControl2.x + mBezierEnd2.x) / 4
         mBezierVertex2.y = (2 * mBezierControl2.y + mBezierStart2.y + mBezierEnd2.y) / 4
         // 注意场景，不能为90度
-        mDegree = Math.toDegrees(atan2((mBezierControl1.y - 0).toDouble(), (mBezierControl2.x - 0).toDouble()))
+
+        mDegree = Math.toDegrees(atan2((abs(mCorner.y - mBezierControl2.y)).toDouble(), (abs(mCorner.x - mBezierControl1.x)).toDouble()))
         mTouchDis = hypot((mTouchPoint.x - mCorner.x).toDouble(), (mTouchPoint.y - mCorner.y).toDouble()).toFloat()
+
+        flipPath.reset()
+        flipPath.moveTo(mBezierStart1.x, mBezierStart1.y)
+        flipPath.quadTo(mBezierControl1.x, mBezierControl1.y, mBezierEnd1.x, mBezierEnd1.y)
+        flipPath.lineTo(mTouchPoint.x, mTouchPoint.y)
+        flipPath.lineTo(mBezierEnd2.x, mBezierEnd2.y)
+        flipPath.quadTo(mBezierControl2.x, mBezierControl2.y, mBezierStart2.x, mBezierStart2.y)
+        flipPath.lineTo(mCorner.x, mCorner.y)
+        flipPath.close()
     }
 
     private fun resetPoint() {
@@ -496,6 +604,15 @@ class RealFlipView @JvmOverloads constructor(
         mBezierVertex1.y = (2 * mBezierControl1.y + mBezierStart1.y + mBezierEnd1.y) / 4
         mBezierVertex2.x = (mBezierStart2.x + 2 * mBezierControl2.x + mBezierEnd2.x) / 4
         mBezierVertex2.y = (2 * mBezierControl2.y + mBezierStart2.y + mBezierEnd2.y) / 4
+
+        flipPath.reset()
+        flipPath.moveTo(mBezierStart1.x, mBezierStart1.y)
+        flipPath.quadTo(mBezierControl1.x, mBezierControl1.y, mBezierEnd1.x, mBezierEnd1.y)
+        flipPath.lineTo(mTouchPoint.x, mTouchPoint.y)
+        flipPath.lineTo(mBezierEnd2.x, mBezierEnd2.y)
+        flipPath.quadTo(mBezierControl2.x, mBezierControl2.y, mBezierStart2.x, mBezierStart2.y)
+        flipPath.lineTo(mCorner.x, mCorner.y)
+        flipPath.close()
     }
 
     /**
@@ -518,7 +635,10 @@ class RealFlipView @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val x = event.x
         val y = event.y
-        when(event.action) {
+
+        // fixme 确定位置后，需要确定，mCorner
+        Log.d("wangjie", "x: ${x}, y: ${y}")
+        /*when(event.action) {
             MotionEvent.ACTION_DOWN -> {
                 mTouchPoint.x = x
                 mTouchPoint.y = y
@@ -542,7 +662,7 @@ class RealFlipView @JvmOverloads constructor(
             MotionEvent.ACTION_UP -> {
 
             }
-        }
+        }*/
         return super.onTouchEvent(event)
     }
 
