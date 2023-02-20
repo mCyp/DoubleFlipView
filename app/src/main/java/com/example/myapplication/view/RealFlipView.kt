@@ -121,19 +121,20 @@ class RealFlipView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        flipSide = BOTTOM_SIDE
+        flipSide = TOP_SIDE
         curFlipPage = 1
         mTouchPoint.x = 1710f
         mTouchPoint.y = 696f
         isStopScroll = false
         mCorner.x = mRightPageRBPoint.x
-        mCorner.y = mRightPageRBPoint.y
+        mCorner.y = mRightPageLTPoint.y
 
         if (isStopScroll) {
             resetPoint()
         } else {
             calculatePoint()
         }
+
         // 1. 绘制非翻页的一边
         drawNoFlipSide(canvas)
         // 2. 绘制翻页的一边
@@ -160,8 +161,6 @@ class RealFlipView @JvmOverloads constructor(
             reUsePath.offset(-mRightPageLTPoint.x, 0f)
         }
         reUsePath.close()
-
-
         // 这个offset根据页面调整
 
         canvas.save()
@@ -254,15 +253,27 @@ class RealFlipView @JvmOverloads constructor(
 
     private fun drawTwoSideShadow(canvas: Canvas) {
         val outPoint = PointF()
+        // 设置阴影的顶点
+        val rad = Math.toRadians(mDegree)
         if (curFlipPage == 0) {
-            outPoint.x = mTouchPoint.x + OUT_LEN * cos(mDegree).toFloat()
+            outPoint.x = mTouchPoint.x + OUT_LEN * sin(rad).toFloat()
         } else {
-            outPoint.x = mTouchPoint.x - OUT_LEN * cos(mDegree).toFloat()
+            outPoint.x = mTouchPoint.x - OUT_LEN * sin(rad).toFloat()
         }
         if (flipSide == TOP_SIDE) {
-            outPoint.y = mTouchPoint.y + OUT_LEN * sin(mDegree).toFloat()
+            outPoint.y = mTouchPoint.y + OUT_LEN * cos(rad).toFloat()
         } else {
-            outPoint.y = mTouchPoint.y - OUT_LEN * sin(mDegree).toFloat()
+            outPoint.y = mTouchPoint.y - OUT_LEN * cos(rad).toFloat()
+        }
+        // 计算旋转的角度
+        var deOne = Math.toDegrees(
+            atan2(
+                (mTouchPoint.x - mBezierControl1.x).toDouble(),
+                (mBezierControl1.y - mTouchPoint.y).toDouble()
+            )
+        )
+        if(deOne > 90){
+            deOne -= 180f
         }
 
         // 绘制一半的阴影
@@ -284,33 +295,14 @@ class RealFlipView @JvmOverloads constructor(
         } catch (e: Exception) {
             // Logger.exception(e);
         }
-        val deOne = Math.toDegrees(
-            atan2(
-                abs(mTouchPoint.x - mBezierControl1.x).toDouble(),
-                abs(mTouchPoint.y - mBezierControl1.y).toDouble()
-            )
-        )
-        val targetDeOne = if (curFlipPage == 0) {
-            if (flipSide == TOP_SIDE) {
-                -deOne
-            } else {
-                deOne
-            }
-        } else {
-            if (flipSide == TOP_SIDE) {
-                deOne
-            } else {
-                -deOne
-            }
-        }
-        canvas.rotate(targetDeOne.toFloat(), outPoint.x, outPoint.y)
+        canvas.rotate(deOne.toFloat(), outPoint.x, outPoint.y)
         val colors = if (curFlipPage == 0) shadowColors else shadowReverseColors
         var bottomFirst = 0f
         var rightFirst = 0f
         if(curFlipPage == 0) {
-            rightFirst = (outPoint.x - sin(mDegree) * OUT_LEN - 1).toFloat()
+            rightFirst = (outPoint.x - cos(rad) * OUT_LEN - 1).toFloat()
         } else {
-            rightFirst = (outPoint.x + sin(mDegree) * OUT_LEN + 1).toFloat()
+            rightFirst = (outPoint.x + cos(rad) * OUT_LEN + 1).toFloat()
         }
         if(flipSide == TOP_SIDE) {
             bottomFirst = outPoint.y - abs(mCorner.x - mBezierControl1.x)
@@ -338,42 +330,23 @@ class RealFlipView @JvmOverloads constructor(
         } catch (e: Exception) {
             // Logger.exception(e);
         }
-        val deTwo = Math.toDegrees(
-            atan2(
-                abs(mTouchPoint.x - mBezierControl2.x).toDouble(),
-                abs(mTouchPoint.y - mBezierControl2.y).toDouble()
-            )
-        )
-        val targetDeTwo = if (curFlipPage == 0) {
-            if (flipSide == TOP_SIDE) {
-                deTwo
-            } else {
-                -deTwo
-            }
-        } else {
-            if (flipSide == TOP_SIDE) {
-                -deTwo
-            } else {
-                deTwo
-            }
-        }
-        canvas.rotate(targetDeTwo.toFloat(), outPoint.x, outPoint.y)
+        canvas.rotate(deOne.toFloat(), outPoint.x, outPoint.y)
 
-        var topSecond = 0f
-        var rightSecond = 0f
-        if(curFlipPage == 0) {
-            rightSecond = (outPoint.x - cos(mDegree) * OUT_LEN).toFloat() - 1
-        } else {
-            rightSecond = (outPoint.x + cos(mDegree) * OUT_LEN).toFloat() + 1
-        }
+        val secondColors = shadowReverseColors
+        var secondBottom = 0f
+        var secondRight = 0f
         if(flipSide == TOP_SIDE) {
-            topSecond = outPoint.y + abs(mCorner.y - mBezierControl2.y)
+            secondBottom = (outPoint.y - abs(sin(rad)) * OUT_LEN).toFloat() - 1
         } else {
-            topSecond = outPoint.y - abs(mCorner.y - mBezierControl2.y)
+            secondBottom = (outPoint.y + abs(sin(rad)) * OUT_LEN).toFloat() + 1
         }
-        mPaint.shader =
-            getGradient(outPoint.x, 0f, rightSecond, 0f, colors)
-        canvas.drawRect(outPoint.x, outPoint.y, rightSecond, topSecond ,mPaint)
+        if(curFlipPage == 0) {
+            secondRight = outPoint.x - abs(mCorner.y - mBezierControl2.y)
+        } else {
+            secondRight = outPoint.x + abs(mCorner.y - mBezierControl2.y)
+        }
+        mPaint.shader = getGradient(outPoint.x, outPoint.y, outPoint.x, secondBottom, secondColors)
+        canvas.drawRect(outPoint.x, outPoint.y, secondRight, secondBottom ,mPaint)
         canvas.restore()
     }
 
