@@ -150,6 +150,7 @@ class RealFlipView @JvmOverloads constructor(
     }
 
     private fun drawBackContentAndShadow(canvas: Canvas){
+        // 旋转 + 平移
         // 1. 限制绘制翻开白区域
         reUsePath.reset()
         reUsePath.moveTo(mBezierVertex1.x, mBezierVertex1.y)
@@ -157,14 +158,13 @@ class RealFlipView @JvmOverloads constructor(
         reUsePath.lineTo(mBezierEnd2.x, mBezierEnd2.y)
         reUsePath.lineTo(mTouchPoint.x, mTouchPoint.y)
         reUsePath.lineTo(mBezierEnd1.x, mBezierEnd1.y)
-        if(curFlipPage == 1) {
+        if(curFlipPage == 0) {
             reUsePath.offset(-mRightPageLTPoint.x, 0f)
         }
         reUsePath.close()
         // 这个offset根据页面调整
-
         canvas.save()
-        if(curFlipPage == 1) {
+        if(curFlipPage == 0) {
             canvas.translate(mRightPageLTPoint.x, mRightPageLTPoint.y)
             flipPath.offset(-mRightPageLTPoint.x, 0f)
         }
@@ -172,40 +172,63 @@ class RealFlipView @JvmOverloads constructor(
         canvas.clipPath(reUsePath)
         //mPaint.colorFilter = mColorMatrixFilter
         canvas.drawColor(bgColor)
-
         // 2. 绘制在白色区域
-        // 这里的公式其实是一个沿着 y = kx 的对称，理解起来有点难度，
-        // 公式的计算地址：https://juejin.cn/post/6844903504671145992
-        val dis = hypot(mCorner.x - mBezierControl1.x, mCorner.y - mBezierControl2.y)
-        val curSin: Float = (mCorner.x - mBezierControl1.x) / dis
-        val curCos: Float = (mBezierControl2.y - mCorner.y) / dis
-        mMatrixArray[0] = 1 - 2 * curCos * curCos
-        mMatrixArray[1] = 2 * curSin * curCos
-        mMatrixArray[3] = mMatrixArray[1]
-        mMatrixArray[4] = 1 - 2 * curSin * curSin
-        mMatrix.reset()
-        mMatrix.setValues(mMatrixArray)
-        if(curFlipPage == 0) {
-            mMatrix.preTranslate(-(mBezierControl1.x), -mBezierControl1.y)
-            mMatrix.postTranslate(mBezierControl1.x, mBezierControl1.y)
-        } else {
-            mMatrix.preTranslate(-(mBezierControl1.x - mRightPageLTPoint.x), -mBezierControl1.y)
-            mMatrix.postTranslate(mBezierControl1.x - mRightPageLTPoint.x, mBezierControl1.y)
-        }
-        if(curFlipPage == 0) {
-            mRightMiddleBitmap?.let {
-                canvas.drawBitmap(it, mMatrix, mPaint)
+        // 以中间的两个点为圆心，旋转
+        var pivotX = 0f
+        var pivotY = 0f
+        var de = 180f - 2 * mDegree
+        // 计算旋转
+        if(flipSide == TOP_SIDE) {
+            pivotX = mRightPageLTPoint.x
+            pivotY = mRightPageLTPoint.y
+            if(curFlipPage == 1) {
+                de = -(de)
             }
         } else {
-            mRightMiddleBitmap?.let {
-                canvas.drawBitmap(it, mMatrix, mPaint)
+            pivotX = mRightPageLTPoint.x
+            pivotY = mRightPageRBPoint.y
+            if(curFlipPage == 0) {
+                //mMatrix
+                de = -de
             }
         }
+        mMatrix.setRotate(de.toFloat(), pivotX, pivotY)
 
+        val originArr = floatArrayOf(0f, 0f)
+        val mapArr = floatArrayOf(0f, 0f)
+        if(curFlipPage == 0) {
+            if(flipSide == TOP_SIDE) {
+                originArr[0] = mRightPageRBPoint.x
+                originArr[1] = mRightPageLTPoint.y
+            } else {
+                originArr[0] = mRightPageRBPoint.x
+                originArr[1] = mRightPageRBPoint.y
+            }
+        } else {
+            if(flipSide == TOP_SIDE) {
+                originArr[0] = mLeftPageLTPoint.x
+                originArr[1] = mLeftPageLTPoint.x
+            } else {
+                originArr[0] = mLeftPageLTPoint.x
+                originArr[1] = mLeftPageRBPoint.y
+            }
+        }
+        mMatrix.mapPoints(mapArr, originArr)
+        mMatrix.postTranslate(mTouchPoint.x - mapArr[0], mTouchPoint.y - mapArr[1])
+
+        if(curFlipPage == 0) {
+            mRightMiddleBitmap?.let {
+                canvas.drawBitmap(it, mMatrix, null)
+            }
+        } else {
+            mRightMiddleBitmap?.let {
+                canvas.drawBitmap(it, mMatrix, null)
+            }
+        }
         mPaint.colorFilter = null
 
         // 3. 设置阴影
-        if(curFlipPage == 1) {
+        if(curFlipPage == 0) {
             canvas.translate(-mRightPageLTPoint.x, -mRightPageLTPoint.y)
         }
         val minDis = mTouchDis / 8
