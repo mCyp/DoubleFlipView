@@ -121,13 +121,13 @@ class RealFlipView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        flipSide = TOP_SIDE
-        curFlipPage = 1
-        mTouchPoint.x = 1710f
-        mTouchPoint.y = 696f
+        flipSide = BOTTOM_SIDE
+        curFlipPage = 0
+        mTouchPoint.x = 900f
+        mTouchPoint.y = 600f
         isStopScroll = false
-        mCorner.x = mRightPageRBPoint.x
-        mCorner.y = mRightPageLTPoint.y
+        mCorner.x = mLeftPageLTPoint.x
+        mCorner.y = mLeftPageRBPoint.y
 
         if (isStopScroll) {
             resetPoint()
@@ -183,6 +183,8 @@ class RealFlipView @JvmOverloads constructor(
             pivotY = mRightPageLTPoint.y
             if(curFlipPage == 1) {
                 de = -(de)
+            } else {
+                pivotX -= mRightPageLTPoint.x
             }
         } else {
             pivotX = mRightPageLTPoint.x
@@ -190,6 +192,7 @@ class RealFlipView @JvmOverloads constructor(
             if(curFlipPage == 0) {
                 //mMatrix
                 de = -de
+                pivotX -= mRightPageLTPoint.x
             }
         }
         mMatrix.setRotate(de.toFloat(), pivotX, pivotY)
@@ -198,10 +201,10 @@ class RealFlipView @JvmOverloads constructor(
         val mapArr = floatArrayOf(0f, 0f)
         if(curFlipPage == 0) {
             if(flipSide == TOP_SIDE) {
-                originArr[0] = mRightPageRBPoint.x
+                originArr[0] = mRightPageRBPoint.x - mRightPageLTPoint.x
                 originArr[1] = mRightPageLTPoint.y
             } else {
-                originArr[0] = mRightPageRBPoint.x
+                originArr[0] = mRightPageRBPoint.x - mRightPageLTPoint.x
                 originArr[1] = mRightPageRBPoint.y
             }
         } else {
@@ -214,10 +217,10 @@ class RealFlipView @JvmOverloads constructor(
             }
         }
         mMatrix.mapPoints(mapArr, originArr)
-        mMatrix.postTranslate(mTouchPoint.x - mapArr[0], mTouchPoint.y - mapArr[1])
+        mMatrix.postTranslate(mTouchPoint.x - mRightPageLTPoint.x - mapArr[0], mTouchPoint.y - mapArr[1])
 
         if(curFlipPage == 0) {
-            mRightMiddleBitmap?.let {
+            mLeftMiddleBitmap?.let {
                 canvas.drawBitmap(it, mMatrix, null)
             }
         } else {
@@ -319,18 +322,16 @@ class RealFlipView @JvmOverloads constructor(
             // Logger.exception(e);
         }
         canvas.rotate(deOne.toFloat(), outPoint.x, outPoint.y)
-        val colors = if (curFlipPage == 0) shadowColors else shadowReverseColors
-        var bottomFirst = 0f
-        var rightFirst = 0f
-        if(curFlipPage == 0) {
-            rightFirst = (outPoint.x - cos(rad) * OUT_LEN - 1).toFloat()
+        val colors = shadowReverseColors
+        val rightFirst = if(curFlipPage == 0) {
+            (outPoint.x - cos(rad) * OUT_LEN - 1).toFloat()
         } else {
-            rightFirst = (outPoint.x + cos(rad) * OUT_LEN + 1).toFloat()
+            (outPoint.x + cos(rad) * OUT_LEN + 1).toFloat()
         }
-        if(flipSide == TOP_SIDE) {
-            bottomFirst = outPoint.y - abs(mCorner.x - mBezierControl1.x)
+        val bottomFirst = if(flipSide == TOP_SIDE) {
+            outPoint.y - abs(mCorner.x - mBezierControl1.x)
         } else {
-            bottomFirst = outPoint.y + abs(mCorner.x - mBezierControl1.x)
+            outPoint.y + abs(mCorner.x - mBezierControl1.x)
         }
         mPaint.shader = getGradient(outPoint.x, mBezierControl1.y, rightFirst, mBezierControl1.y, colors)
         canvas.drawRect(outPoint.x, outPoint.y, rightFirst, bottomFirst ,mPaint)
@@ -356,17 +357,15 @@ class RealFlipView @JvmOverloads constructor(
         canvas.rotate(deOne.toFloat(), outPoint.x, outPoint.y)
 
         val secondColors = shadowReverseColors
-        var secondBottom = 0f
-        var secondRight = 0f
-        if(flipSide == TOP_SIDE) {
-            secondBottom = (outPoint.y - abs(sin(rad)) * OUT_LEN).toFloat() - 1
+        val secondBottom: Float = if(flipSide == TOP_SIDE) {
+            (outPoint.y - abs(sin(rad)) * OUT_LEN).toFloat() - 1
         } else {
-            secondBottom = (outPoint.y + abs(sin(rad)) * OUT_LEN).toFloat() + 1
+            (outPoint.y + abs(sin(rad)) * OUT_LEN).toFloat() + 1
         }
-        if(curFlipPage == 0) {
-            secondRight = outPoint.x - abs(mCorner.y - mBezierControl2.y)
+        val secondRight = if(curFlipPage == 0) {
+            outPoint.x - abs(mCorner.y - mBezierControl2.y)
         } else {
-            secondRight = outPoint.x + abs(mCorner.y - mBezierControl2.y)
+            outPoint.x + abs(mCorner.y - mBezierControl2.y)
         }
         mPaint.shader = getGradient(outPoint.x, outPoint.y, outPoint.x, secondBottom, secondColors)
         canvas.drawRect(outPoint.x, outPoint.y, secondRight, secondBottom ,mPaint)
