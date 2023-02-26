@@ -5,11 +5,10 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.os.Bundle
 import android.util.DisplayMetrics
-import android.view.Window
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.example.myapplication.view.DeviceUtil
-import com.qidian.fonttest.view.RealFlipView
+import com.example.myapplication.view.DoubleFlipView
+import com.qidian.fonttest.view.DoubleRealFlipView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -18,7 +17,7 @@ import kotlinx.coroutines.withContext
 private const val TAG = "MainActivity"
 class MainActivity : AppCompatActivity() {
 
-    private var flipView: RealFlipView? = null
+    private var flipView: DoubleFlipView? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,13 +43,7 @@ class MainActivity : AppCompatActivity() {
             sixBitmap = adjustBitmap(sixBitmap)
 
             withContext(Dispatchers.Main) {
-                flipView?.mLeftBottomBitmap = firstBitmap
-                flipView?.mLeftMiddleBitmap = twoBitmap
-                flipView?.mLeftTopBitmap = adjustBitmap(threeBitmap)
-                flipView?.mRightTopBitmap = adjustBitmap(fourBitmap)
-                flipView?.mRightMiddleBitmap = adjustBitmap(fiveBitmap)
-                flipView?.mRightBottomBitmap = adjustBitmap(sixBitmap)
-                flipView?.invalidate()
+
             }
         }
     }

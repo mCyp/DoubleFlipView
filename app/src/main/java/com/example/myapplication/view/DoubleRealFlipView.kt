@@ -14,11 +14,13 @@ private const val TOP_SIDE = 1
 private const val BOTTOM_SIDE = 2
 private const val OUT_LEN = 40f
 @Suppress("DEPRECATION")
-class RealFlipView @JvmOverloads constructor(
+class DoubleRealFlipView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleInt: Int = 0
 ) : View(context, attrs, defStyleInt) {
+
+    // 阴影问题
 
     // 背景色需要调整
     // 一页的宽高比 9:18 --- 1:1
@@ -121,14 +123,6 @@ class RealFlipView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        flipSide = BOTTOM_SIDE
-        curFlipPage = 0
-        mTouchPoint.x = 900f
-        mTouchPoint.y = 600f
-        isStopScroll = false
-        mCorner.x = mLeftPageLTPoint.x
-        mCorner.y = mLeftPageRBPoint.y
-
         if (isStopScroll) {
             resetPoint()
         } else {
@@ -210,14 +204,18 @@ class RealFlipView @JvmOverloads constructor(
         } else {
             if(flipSide == TOP_SIDE) {
                 originArr[0] = mLeftPageLTPoint.x
-                originArr[1] = mLeftPageLTPoint.x
+                originArr[1] = mLeftPageLTPoint.y
             } else {
                 originArr[0] = mLeftPageLTPoint.x
                 originArr[1] = mLeftPageRBPoint.y
             }
         }
         mMatrix.mapPoints(mapArr, originArr)
-        mMatrix.postTranslate(mTouchPoint.x - mRightPageLTPoint.x - mapArr[0], mTouchPoint.y - mapArr[1])
+        if(curFlipPage == 0) {
+            mMatrix.postTranslate(mTouchPoint.x - mRightPageLTPoint.x - mapArr[0], mTouchPoint.y - mapArr[1])
+        } else {
+            mMatrix.postTranslate(mTouchPoint.x - mapArr[0], mTouchPoint.y - mapArr[1])
+        }
 
         if(curFlipPage == 0) {
             mLeftMiddleBitmap?.let {
@@ -521,7 +519,7 @@ class RealFlipView @JvmOverloads constructor(
             reUsePath.lineTo(mRightPageRBPoint.x, mRightPageLTPoint.y)
             reUsePath.close()
             canvas.clipPath(reUsePath)
-            mRightTopBitmap?.let { b->
+            mLeftMiddleBitmap?.let { b->
                 if(!b.isRecycled) {
                    canvas.drawBitmap(b, mRightPageLTPoint.x, mRightPageLTPoint.y, null)
                 }
@@ -536,7 +534,7 @@ class RealFlipView @JvmOverloads constructor(
             reUsePath.lineTo(mLeftPageLTPoint.x, mLeftPageLTPoint.y)
             reUsePath.close()
             canvas.clipPath(reUsePath)
-            mLeftTopBitmap?.let { b->
+            mRightMiddleBitmap?.let { b->
                 if(!b.isRecycled) {
                     canvas.drawBitmap(b, mLeftPageLTPoint.x, mLeftPageLTPoint.y, null)
                 }
@@ -555,6 +553,12 @@ class RealFlipView @JvmOverloads constructor(
         mBezierControl2.y =
             mMiddlePoint.y - (mCorner.x - mMiddlePoint.x) * (mCorner.x - mMiddlePoint.x) / (mCorner.y - mMiddlePoint.y)
         mBezierStart1.x = mBezierControl1.x - (mCorner.x - mBezierControl1.x) / 2
+        if(curFlipPage == 0) {
+            mBezierStart1.x = min(mBezierStart1.x, mLeftPageLTPoint.x)
+        } else {
+            mBezierStart1.x = max(mBezierStart1.x, mRightPageLTPoint.x)
+        }
+        // fixme 思考这种复杂场景如何处理
         mBezierStart1.y = mCorner.y
         mBezierStart2.x = mCorner.x
         mBezierStart2.y = mBezierControl2.y - (mCorner.y - mBezierControl2.y) / 2
@@ -625,41 +629,54 @@ class RealFlipView @JvmOverloads constructor(
         return crossPoint
     }
 
-
-    // 先写一个简单的事件
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        val x = event.x
-        val y = event.y
-
-        // fixme 确定位置后，需要确定，mCorner
-        Log.d("wangjie", "x: ${x}, y: ${y}")
-        /*when(event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                mTouchPoint.x = x
-                mTouchPoint.y = y
-                if(x < curWidth / 2) {
-                    curFlipPage = 0
-                } else {
-                    curFlipPage = 1
-                }
-                if(y < curHeight / 2) {
-                    flipSide = TOP_SIDE
-                } else {
-                    flipSide = BOTTOM_SIDE
-                }
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if(mTouchPoint.x != -1f && mTouchPoint.y != -1f) {
-                    mTouchPoint.x = x
-                    mTouchPoint.y = y
-                }
-            }
-            MotionEvent.ACTION_UP -> {
-
-            }
-        }*/
-        return super.onTouchEvent(event)
+    fun prepareForScroll(x: Float, y: Float) {
+        mTouchPoint.x = x
+        mTouchPoint.y = y
+        curFlipPage = if(x < curWidth / 2) {
+            0
+        } else {
+            1
+        }
+        flipSide = if(y < curHeight / 2) {
+            TOP_SIDE
+        } else {
+            BOTTOM_SIDE
+        }
+        Log.d("wangjie", "curFlipPage: $curFlipPage, flipSide: $flipSide")
+        initCornerPoint()
     }
 
+    fun setTouchPoint(x: Float, y: Float) {
+        mTouchPoint.x = x
+        mTouchPoint.y = y
+        invalidate()
+    }
+
+
+    fun stopScroll() {
+        isStopScroll = true
+    }
+
+    private fun initCornerPoint() {
+        if(curFlipPage == 0) {
+            if(flipSide == TOP_SIDE) {
+                mCorner.x = mLeftPageLTPoint.x
+                mCorner.y = mLeftPageLTPoint.y
+            } else {
+                mCorner.x = mLeftPageLTPoint.x
+                mCorner.y = mLeftPageRBPoint.y
+            }
+        } else {
+            if(flipSide == TOP_SIDE) {
+                mCorner.x = mRightPageRBPoint.x
+                mCorner.y = mRightPageLTPoint.y
+            } else {
+                mCorner.x = mRightPageRBPoint.x
+                mCorner.y = mRightPageRBPoint.y
+            }
+        }
+        isStopScroll = false
+        Log.d("wangjie", "mCorner.x: ${mCorner.x}, mCorner.y: ${mCorner.y}")
+    }
 
 }
