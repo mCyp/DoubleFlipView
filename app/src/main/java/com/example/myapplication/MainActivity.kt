@@ -43,7 +43,13 @@ class MainActivity : AppCompatActivity() {
             sixBitmap = adjustBitmap(sixBitmap)
 
             withContext(Dispatchers.Main) {
-
+                flipView?.mDoubleRealFlipView?.mLeftBottomBitmap = firstBitmap
+                flipView?.mDoubleRealFlipView?.mLeftMiddleBitmap = twoBitmap
+                flipView?.mDoubleRealFlipView?.mLeftTopBitmap = threeBitmap
+                flipView?.mDoubleRealFlipView?.mRightTopBitmap = fourBitmap
+                flipView?.mDoubleRealFlipView?.mRightMiddleBitmap = fiveBitmap
+                flipView?.mDoubleRealFlipView?.mRightBottomBitmap = sixBitmap
+                flipView?.mDoubleRealFlipView?.invalidate()
             }
         }
     }

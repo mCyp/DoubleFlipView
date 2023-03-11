@@ -5,7 +5,6 @@ import android.graphics.*
 import android.os.Build
 import android.util.AttributeSet
 import android.util.Log
-import android.view.MotionEvent
 import android.view.View
 import com.example.myapplication.view.DeviceUtil
 import kotlin.math.*
@@ -13,6 +12,12 @@ import kotlin.math.*
 private const val TOP_SIDE = 1
 private const val BOTTOM_SIDE = 2
 private const val OUT_LEN = 40f
+
+const val DIRECT_TL = 1
+const val DIRECT_TR = 2
+const val DIRECT_BL = 3
+const val DIRECT_BR = 4
+
 @Suppress("DEPRECATION")
 class DoubleRealFlipView @JvmOverloads constructor(
     context: Context,
@@ -20,7 +25,9 @@ class DoubleRealFlipView @JvmOverloads constructor(
     defStyleInt: Int = 0
 ) : View(context, attrs, defStyleInt) {
 
-    // 阴影问题
+    // 1. 修正架构
+    // 2. 修正阴影
+    // 3. 优化手势和动画
 
     // 背景色需要调整
     // 一页的宽高比 9:18 --- 1:1
@@ -42,7 +49,11 @@ class DoubleRealFlipView @JvmOverloads constructor(
     private val shadowColors = intArrayOf(-0x4f99999a, 0x666666)
     private val shadowReverseColors = intArrayOf(0x666666, -0x4f99999a)
 
-    private val mTouchPoint: PointF = PointF(-1.0f, -1.0f)
+    private val mStartPoint: PointF = PointF(-1.0f, -1.0f)
+    // 初页脚
+    private val mOriginalCorner = PointF()
+    // 滑动过程中的页脚
+    private val mCurCornerPoint: PointF = PointF(-1.0f, -1.0f)
 
     // 触摸点和页脚之间的中点
     private val mMiddlePoint: PointF = PointF()
@@ -59,9 +70,6 @@ class DoubleRealFlipView @JvmOverloads constructor(
     private val mRightPageLTPoint = PointF()
     private val mRightPageRBPoint = PointF()
 
-    // 滑动对应的页脚
-    private val mCorner = PointF()
-
     private var curWidth = 0
     private var curHeight = 0
     // 每页的宽高
@@ -72,7 +80,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
     // 1. 触摸的是左右哪一侧？
     // 2. 反动的上半部分还是下半部分？
     // 0-代表左边一页 1-右边页
-    private var curFlipPage = 0
+    private var flipPage = 0
     private var flipSide = 0
     private var mDegree: Double = 0.0
     private var mTouchDis: Float = 0.0f
@@ -81,7 +89,6 @@ class DoubleRealFlipView @JvmOverloads constructor(
     var bgColor: Int = 0
 
     private var mColorMatrixFilter: ColorMatrixColorFilter
-    private val mMatrixArray = floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 1.0f)
     private val mMatrix: Matrix
     private val r = DeviceUtil.dip2px(context, 13f)
 
@@ -100,7 +107,6 @@ class DoubleRealFlipView @JvmOverloads constructor(
             return
         }
 
-        // 不考虑适配不同机型
         curWidth = w
         curHeight = h
         pageWidth = w / 2
@@ -141,6 +147,13 @@ class DoubleRealFlipView @JvmOverloads constructor(
         drawTwoSideShadow(canvas)
         // 6. 绘制翻页的背部内容和阴影
         drawBackContentAndShadow(canvas)
+
+        /*val paint = Paint()
+        paint.setColor(Color.BLACK)
+        canvas.drawLine(mBezierControl1.x, mBezierControl1.y, mBezierControl2.x, mBezierControl2.y, paint)
+        paint.strokeWidth = 10f
+        canvas.drawPoint(mBezierStart1.x, mBezierStart1.y, paint)
+        canvas.drawPoint(mBezierStart2.x, mBezierStart2.y, paint)*/
     }
 
     private fun drawBackContentAndShadow(canvas: Canvas){
@@ -150,15 +163,15 @@ class DoubleRealFlipView @JvmOverloads constructor(
         reUsePath.moveTo(mBezierVertex1.x, mBezierVertex1.y)
         reUsePath.lineTo(mBezierVertex2.x, mBezierVertex2.y)
         reUsePath.lineTo(mBezierEnd2.x, mBezierEnd2.y)
-        reUsePath.lineTo(mTouchPoint.x, mTouchPoint.y)
+        reUsePath.lineTo(mCurCornerPoint.x, mCurCornerPoint.y)
         reUsePath.lineTo(mBezierEnd1.x, mBezierEnd1.y)
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             reUsePath.offset(-mRightPageLTPoint.x, 0f)
         }
         reUsePath.close()
         // 这个offset根据页面调整
         canvas.save()
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             canvas.translate(mRightPageLTPoint.x, mRightPageLTPoint.y)
             flipPath.offset(-mRightPageLTPoint.x, 0f)
         }
@@ -168,14 +181,14 @@ class DoubleRealFlipView @JvmOverloads constructor(
         canvas.drawColor(bgColor)
         // 2. 绘制在白色区域
         // 以中间的两个点为圆心，旋转
-        var pivotX = 0f
-        var pivotY = 0f
+        var pivotX: Float
+        val pivotY: Float
         var de = 180f - 2 * mDegree
         // 计算旋转
         if(flipSide == TOP_SIDE) {
             pivotX = mRightPageLTPoint.x
             pivotY = mRightPageLTPoint.y
-            if(curFlipPage == 1) {
+            if(flipPage == 1) {
                 de = -(de)
             } else {
                 pivotX -= mRightPageLTPoint.x
@@ -183,7 +196,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         } else {
             pivotX = mRightPageLTPoint.x
             pivotY = mRightPageRBPoint.y
-            if(curFlipPage == 0) {
+            if(flipPage == 0) {
                 //mMatrix
                 de = -de
                 pivotX -= mRightPageLTPoint.x
@@ -193,7 +206,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
 
         val originArr = floatArrayOf(0f, 0f)
         val mapArr = floatArrayOf(0f, 0f)
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             if(flipSide == TOP_SIDE) {
                 originArr[0] = mRightPageRBPoint.x - mRightPageLTPoint.x
                 originArr[1] = mRightPageLTPoint.y
@@ -211,13 +224,13 @@ class DoubleRealFlipView @JvmOverloads constructor(
             }
         }
         mMatrix.mapPoints(mapArr, originArr)
-        if(curFlipPage == 0) {
-            mMatrix.postTranslate(mTouchPoint.x - mRightPageLTPoint.x - mapArr[0], mTouchPoint.y - mapArr[1])
+        if(flipPage == 0) {
+            mMatrix.postTranslate(mCurCornerPoint.x - mRightPageLTPoint.x - mapArr[0], mCurCornerPoint.y - mapArr[1])
         } else {
-            mMatrix.postTranslate(mTouchPoint.x - mapArr[0], mTouchPoint.y - mapArr[1])
+            mMatrix.postTranslate(mCurCornerPoint.x - mapArr[0], mCurCornerPoint.y - mapArr[1])
         }
 
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             mLeftMiddleBitmap?.let {
                 canvas.drawBitmap(it, mMatrix, null)
             }
@@ -229,7 +242,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         mPaint.colorFilter = null
 
         // 3. 设置阴影
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             canvas.translate(-mRightPageLTPoint.x, -mRightPageLTPoint.y)
         }
         val minDis = mTouchDis / 8
@@ -239,7 +252,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         val bottom: Float
         val top: Float
         val rotateDegree: Float
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             left = mBezierStart1.x - minDis - 1
             right = mBezierStart1.x + 1
             if(flipSide == TOP_SIDE) {
@@ -264,7 +277,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
                 rotateDegree = (90 - mDegree.toFloat())
             }
         }
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             mPaint.shader = getGradient(left, mBezierStart1.y, right, mBezierStart1.y, shadowColors)
         } else {
             mPaint.shader = getGradient(left, mBezierStart1.y, right, mBezierStart1.y, shadowReverseColors)
@@ -279,21 +292,21 @@ class DoubleRealFlipView @JvmOverloads constructor(
         val outPoint = PointF()
         // 设置阴影的顶点
         val rad = Math.toRadians(mDegree)
-        if (curFlipPage == 0) {
-            outPoint.x = mTouchPoint.x + OUT_LEN * sin(rad).toFloat()
+        if (flipPage == 0) {
+            outPoint.x = mCurCornerPoint.x + OUT_LEN * sin(rad).toFloat()
         } else {
-            outPoint.x = mTouchPoint.x - OUT_LEN * sin(rad).toFloat()
+            outPoint.x = mCurCornerPoint.x - OUT_LEN * sin(rad).toFloat()
         }
         if (flipSide == TOP_SIDE) {
-            outPoint.y = mTouchPoint.y + OUT_LEN * cos(rad).toFloat()
+            outPoint.y = mCurCornerPoint.y + OUT_LEN * cos(rad).toFloat()
         } else {
-            outPoint.y = mTouchPoint.y - OUT_LEN * cos(rad).toFloat()
+            outPoint.y = mCurCornerPoint.y - OUT_LEN * cos(rad).toFloat()
         }
         // 计算旋转的角度
         var deOne = Math.toDegrees(
             atan2(
-                (mTouchPoint.x - mBezierControl1.x).toDouble(),
-                (mBezierControl1.y - mTouchPoint.y).toDouble()
+                (mCurCornerPoint.x - mBezierControl1.x).toDouble(),
+                (mBezierControl1.y - mCurCornerPoint.y).toDouble()
             )
         )
         if(deOne > 90){
@@ -305,7 +318,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         // 不同页面翻转的角度不一致
         reUsePath.reset()
         reUsePath.moveTo(outPoint.x, outPoint.y)
-        reUsePath.lineTo(mTouchPoint.x, mTouchPoint.y)
+        reUsePath.lineTo(mCurCornerPoint.x, mCurCornerPoint.y)
         reUsePath.lineTo(mBezierControl1.x, mBezierControl1.y)
         reUsePath.lineTo(mBezierStart1.x, mBezierStart1.y)
         reUsePath.close()
@@ -321,15 +334,15 @@ class DoubleRealFlipView @JvmOverloads constructor(
         }
         canvas.rotate(deOne.toFloat(), outPoint.x, outPoint.y)
         val colors = shadowReverseColors
-        val rightFirst = if(curFlipPage == 0) {
+        val rightFirst = if(flipPage == 0) {
             (outPoint.x - cos(rad) * OUT_LEN - 1).toFloat()
         } else {
             (outPoint.x + cos(rad) * OUT_LEN + 1).toFloat()
         }
         val bottomFirst = if(flipSide == TOP_SIDE) {
-            outPoint.y - abs(mCorner.x - mBezierControl1.x)
+            outPoint.y - abs(mOriginalCorner.x - mBezierControl1.x)
         } else {
-            outPoint.y + abs(mCorner.x - mBezierControl1.x)
+            outPoint.y + abs(mOriginalCorner.x - mBezierControl1.x)
         }
         mPaint.shader = getGradient(outPoint.x, mBezierControl1.y, rightFirst, mBezierControl1.y, colors)
         canvas.drawRect(outPoint.x, outPoint.y, rightFirst, bottomFirst ,mPaint)
@@ -338,7 +351,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         canvas.save()
         reUsePath.reset()
         reUsePath.moveTo(outPoint.x, outPoint.y)
-        reUsePath.lineTo(mTouchPoint.x, mTouchPoint.y)
+        reUsePath.lineTo(mCurCornerPoint.x, mCurCornerPoint.y)
         reUsePath.lineTo(mBezierControl2.x, mBezierControl2.y)
         reUsePath.lineTo(mBezierStart2.x, mBezierStart2.y)
         reUsePath.close()
@@ -360,10 +373,10 @@ class DoubleRealFlipView @JvmOverloads constructor(
         } else {
             (outPoint.y + abs(sin(rad)) * OUT_LEN).toFloat() + 1
         }
-        val secondRight = if(curFlipPage == 0) {
-            outPoint.x - abs(mCorner.y - mBezierControl2.y)
+        val secondRight = if(flipPage == 0) {
+            outPoint.x - abs(mOriginalCorner.y - mBezierControl2.y)
         } else {
-            outPoint.x + abs(mCorner.y - mBezierControl2.y)
+            outPoint.x + abs(mOriginalCorner.y - mBezierControl2.y)
         }
         mPaint.shader = getGradient(outPoint.x, outPoint.y, outPoint.x, secondBottom, secondColors)
         canvas.drawRect(outPoint.x, outPoint.y, secondRight, secondBottom ,mPaint)
@@ -373,7 +386,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
     private fun drawFlipPageBottomPageContent(canvas: Canvas) {
         canvas.save()
         // 绘制内容部分
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             reUsePath.reset()
             reUsePath.addRect(mLeftPageLTPoint.x, mLeftPageLTPoint.y, mLeftPageRBPoint.x, mLeftPageRBPoint.y, Path.Direction.CW)
             canvas.clipPath(reUsePath)
@@ -381,7 +394,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
             mLeftBottomBitmap?.let {
                 canvas.drawBitmap(it, mLeftPageLTPoint.x, mLeftPageLTPoint.y, null)
             }
-        } else if(curFlipPage == 1) {
+        } else if(flipPage == 1) {
             reUsePath.reset()
             reUsePath.addRect(mRightPageLTPoint.x, mRightPageLTPoint.y, mRightPageRBPoint.x, mRightPageRBPoint.y, Path.Direction.CW)
             canvas.clipPath(reUsePath)
@@ -391,7 +404,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
             }
         }
         // 绘制阴影
-        val rotateDegree = if(curFlipPage == 0) {
+        val rotateDegree = if(flipPage == 0) {
             if(flipSide == TOP_SIDE) {
                 (90 - mDegree.toFloat())
             } else {
@@ -411,7 +424,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         var top = 0f
         var bottom = 0f
         val rectHeight = hypot((mBezierStart1.x - mBezierStart2.x).toDouble(), (mBezierStart1.y - mBezierStart2.y).toDouble())
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             right = mBezierStart1.x
             left = right - mTouchDis / 4
             if(flipSide == TOP_SIDE) {
@@ -422,7 +435,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
                 top = mBezierStart1.y - rectHeight.toFloat()
             }
             mPaint.shader = getGradient(left, top, right, top, shadowReverseColors)
-        } else if(curFlipPage == 1) {
+        } else if(flipPage == 1) {
             left = mBezierStart1.x
             right = left + mTouchDis / 4
             if(flipSide == TOP_SIDE) {
@@ -440,7 +453,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
 
     private fun drawFlipPageContent(canvas: Canvas) {
         canvas.save()
-        if (curFlipPage == 0) {
+        if (flipPage == 0) {
             reUsePath.reset()
             reUsePath.moveTo(mLeftPageRBPoint.x - r, mLeftPageLTPoint.y)
             reUsePath.arcTo( mLeftPageRBPoint.x - 2 * r, mLeftPageLTPoint.y, mLeftPageRBPoint.x, mLeftPageLTPoint.y + 2 * r, -90f, 90f, false)
@@ -509,7 +522,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
 
     private fun drawNoFlipSide(canvas: Canvas) {
         canvas.save()
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             reUsePath.reset()
             reUsePath.moveTo(mRightPageLTPoint.x + r, mRightPageLTPoint.y)
             reUsePath.arcTo(mRightPageLTPoint.x, mRightPageLTPoint.y, mRightPageLTPoint.x + 2 * r, mRightPageLTPoint.y + 2 * r, -90f, -90f, false)
@@ -544,49 +557,58 @@ class DoubleRealFlipView @JvmOverloads constructor(
     }
 
     private fun calculatePoint() {
-        mMiddlePoint.x = (mTouchPoint.x + mCorner.x) / 2
-        mMiddlePoint.y = (mTouchPoint.y + mCorner.y) / 2
+        mMiddlePoint.x = (mCurCornerPoint.x + mOriginalCorner.x) / 2
+        mMiddlePoint.y = (mCurCornerPoint.y + mOriginalCorner.y) / 2
+        // BezierControl1 需要做限制，因为不能超过两边页的中间点
         mBezierControl1.x =
-            mMiddlePoint.x - (mCorner.y - mMiddlePoint.y) * (mCorner.y - mMiddlePoint.y) / (mCorner.x - mMiddlePoint.x)
-        mBezierControl1.y = mCorner.y
-        mBezierControl2.x = mCorner.x
+            mMiddlePoint.x - (mOriginalCorner.y - mMiddlePoint.y) * (mOriginalCorner.y - mMiddlePoint.y) / (mOriginalCorner.x - mMiddlePoint.x)
+        if(flipPage == 0) {
+            mBezierControl1.x = min(mBezierControl1.x, mLeftPageRBPoint.x)
+        } else {
+            mBezierControl1.x = max(mBezierControl1.x, mRightPageLTPoint.x)
+        }
+        mBezierControl1.y = mOriginalCorner.y
+        mBezierControl2.x = mOriginalCorner.x
         mBezierControl2.y =
-            mMiddlePoint.y - (mCorner.x - mMiddlePoint.x) * (mCorner.x - mMiddlePoint.x) / (mCorner.y - mMiddlePoint.y)
-        mBezierStart1.x = mBezierControl1.x - (mCorner.x - mBezierControl1.x) / 2
-        if(curFlipPage == 0) {
+            mMiddlePoint.y - (mOriginalCorner.x - mMiddlePoint.x) * (mOriginalCorner.x - mMiddlePoint.x) / (mOriginalCorner.y - mMiddlePoint.y)
+
+        mBezierStart1.x = mBezierControl1.x - (mOriginalCorner.x - mBezierControl1.x) / 2
+        if(flipPage == 0) {
             mBezierStart1.x = min(mBezierStart1.x, mLeftPageLTPoint.x)
         } else {
             mBezierStart1.x = max(mBezierStart1.x, mRightPageLTPoint.x)
         }
-        // fixme 思考这种复杂场景如何处理
-        mBezierStart1.y = mCorner.y
-        mBezierStart2.x = mCorner.x
-        mBezierStart2.y = mBezierControl2.y - (mCorner.y - mBezierControl2.y) / 2
-        mBezierEnd1 = getCross(mTouchPoint, mBezierControl1, mBezierStart1, mBezierStart2)
-        mBezierEnd2 = getCross(mTouchPoint, mBezierControl2, mBezierStart1, mBezierStart2)
+
+        mBezierStart1.y = mOriginalCorner.y
+        // 和 Start1 等比例
+        mBezierStart2.x = mOriginalCorner.x
+        mBezierStart2.y =
+            mBezierControl2.y - abs((mBezierControl1.x - mBezierStart1.x) / (mOriginalCorner.x - mBezierControl1.x)) * (mOriginalCorner.y - mBezierControl2.y)
+        mBezierEnd1 = getCross(mCurCornerPoint, mBezierControl1, mBezierStart1, mBezierStart2)
+        mBezierEnd2 = getCross(mCurCornerPoint, mBezierControl2, mBezierStart1, mBezierStart2)
         mBezierVertex1.x = (mBezierStart1.x + 2 * mBezierControl1.x + mBezierEnd1.x) / 4
         mBezierVertex1.y = (2 * mBezierControl1.y + mBezierStart1.y + mBezierEnd1.y) / 4
         mBezierVertex2.x = (mBezierStart2.x + 2 * mBezierControl2.x + mBezierEnd2.x) / 4
         mBezierVertex2.y = (2 * mBezierControl2.y + mBezierStart2.y + mBezierEnd2.y) / 4
-        // 注意场景，不能为90度
+        // fixme 注意场景，不能为90度
 
-        mDegree = Math.toDegrees(atan2((abs(mCorner.y - mBezierControl2.y)).toDouble(), (abs(mCorner.x - mBezierControl1.x)).toDouble()))
-        mTouchDis = hypot((mTouchPoint.x - mCorner.x).toDouble(), (mTouchPoint.y - mCorner.y).toDouble()).toFloat()
+        mDegree = Math.toDegrees(atan2((abs(mOriginalCorner.y - mBezierControl2.y)).toDouble(), (abs(mOriginalCorner.x - mBezierControl1.x)).toDouble()))
+        mTouchDis = hypot((mCurCornerPoint.x - mOriginalCorner.x).toDouble(), (mCurCornerPoint.y - mOriginalCorner.y).toDouble()).toFloat()
 
         flipPath.reset()
         flipPath.moveTo(mBezierStart1.x, mBezierStart1.y)
         flipPath.quadTo(mBezierControl1.x, mBezierControl1.y, mBezierEnd1.x, mBezierEnd1.y)
-        flipPath.lineTo(mTouchPoint.x, mTouchPoint.y)
+        flipPath.lineTo(mCurCornerPoint.x, mCurCornerPoint.y)
         flipPath.lineTo(mBezierEnd2.x, mBezierEnd2.y)
         flipPath.quadTo(mBezierControl2.x, mBezierControl2.y, mBezierStart2.x, mBezierStart2.y)
-        flipPath.lineTo(mCorner.x, mCorner.y)
+        flipPath.lineTo(mOriginalCorner.x, mOriginalCorner.y)
         flipPath.close()
     }
 
     private fun resetPoint() {
-        mTouchPoint.x = 0f
-        mTouchPoint.y = 0f
-        curFlipPage = 0
+        mCurCornerPoint.x = 0f
+        mCurCornerPoint.y = 0f
+        flipPage = 0
         mMiddlePoint.x = 0f
         mMiddlePoint.y = 0f
         mBezierControl1.x = 0f
@@ -594,11 +616,11 @@ class DoubleRealFlipView @JvmOverloads constructor(
         mBezierControl2.x = 0f
         mBezierControl2.y = 0f
         mBezierStart1.x = 0f
-        mBezierStart1.y = mCorner.y
-        mBezierStart2.x = mCorner.x
-        mBezierStart2.y = mBezierControl2.y - (mCorner.y - mBezierControl2.y) / 2
-        mBezierEnd1 = getCross(mTouchPoint, mBezierControl1, mBezierStart1, mBezierStart2)
-        mBezierEnd2 = getCross(mTouchPoint, mBezierControl2, mBezierStart1, mBezierStart2)
+        mBezierStart1.y = mOriginalCorner.y
+        mBezierStart2.x = mOriginalCorner.x
+        mBezierStart2.y = mBezierControl2.y - (mOriginalCorner.y - mBezierControl2.y) / 2
+        mBezierEnd1 = getCross(mCurCornerPoint, mBezierControl1, mBezierStart1, mBezierStart2)
+        mBezierEnd2 = getCross(mCurCornerPoint, mBezierControl2, mBezierStart1, mBezierStart2)
         mBezierVertex1.x = (mBezierStart1.x + 2 * mBezierControl1.x + mBezierEnd1.x) / 4
         mBezierVertex1.y = (2 * mBezierControl1.y + mBezierStart1.y + mBezierEnd1.y) / 4
         mBezierVertex2.x = (mBezierStart2.x + 2 * mBezierControl2.x + mBezierEnd2.x) / 4
@@ -607,10 +629,10 @@ class DoubleRealFlipView @JvmOverloads constructor(
         flipPath.reset()
         flipPath.moveTo(mBezierStart1.x, mBezierStart1.y)
         flipPath.quadTo(mBezierControl1.x, mBezierControl1.y, mBezierEnd1.x, mBezierEnd1.y)
-        flipPath.lineTo(mTouchPoint.x, mTouchPoint.y)
+        flipPath.lineTo(mCurCornerPoint.x, mCurCornerPoint.y)
         flipPath.lineTo(mBezierEnd2.x, mBezierEnd2.y)
         flipPath.quadTo(mBezierControl2.x, mBezierControl2.y, mBezierStart2.x, mBezierStart2.y)
-        flipPath.lineTo(mCorner.x, mCorner.y)
+        flipPath.lineTo(mOriginalCorner.x, mOriginalCorner.y)
         flipPath.close()
     }
 
@@ -629,27 +651,125 @@ class DoubleRealFlipView @JvmOverloads constructor(
         return crossPoint
     }
 
-    fun prepareForScroll(x: Float, y: Float) {
-        mTouchPoint.x = x
-        mTouchPoint.y = y
-        curFlipPage = if(x < curWidth / 2) {
-            0
-        } else {
-            1
+    /**
+     * 手指落下的位置
+     */
+    fun prepareOnDown(x: Float, y: Float) {
+        if(x < mLeftPageLTPoint.x || x > mRightPageRBPoint.x || y < mLeftPageLTPoint.y || y > mLeftPageRBPoint.y) {
+            return
         }
-        flipSide = if(y < curHeight / 2) {
-            TOP_SIDE
-        } else {
-            BOTTOM_SIDE
+        
+        mStartPoint.x = x
+        mStartPoint.y = y
+    }
+
+    fun prePareDirection(direct: Int) {
+        Log.d("wangjie", "prePareDirection")
+        // 确定方向
+        when(direct) {
+            DIRECT_TL -> {
+                flipPage = 1
+                flipSide = BOTTOM_SIDE
+            }
+            DIRECT_TR -> {
+                flipPage = 0
+                flipSide = BOTTOM_SIDE
+            }
+            DIRECT_BL -> {
+                flipPage = 1
+                flipSide = TOP_SIDE
+            }
+            DIRECT_BR -> {
+                flipPage = 0
+                flipSide = TOP_SIDE
+            }
         }
-        Log.d("wangjie", "curFlipPage: $curFlipPage, flipSide: $flipSide")
         initCornerPoint()
     }
 
+    private fun covertTouchPointToCurCornerPoint(x: Float, y: Float) {
+        var targetTouchY = y
+        // 1. 方向是否发生变更
+        var offsetY = y - mStartPoint.y
+        if(offsetY > 0) {
+            if(flipSide == BOTTOM_SIDE) {
+                flipSide = TOP_SIDE
+                initCornerPoint()
+            }
+        } else if(offsetY < 0) {
+            if(flipSide == TOP_SIDE) {
+                flipSide = BOTTOM_SIDE
+                initCornerPoint()
+            }
+        } else {
+            // 如果 offsetY == 0
+            offsetY = if(flipSide == TOP_SIDE){
+                1f
+            } else {
+                -1f
+            }
+        }
+        // 最大极限情况下求坐标
+        val len = hypot(abs(mStartPoint.y - mOriginalCorner.y), pageWidth.toFloat())
+        val maxYDis = sqrt(len * len - (x - mRightPageLTPoint.x) * (x - mRightPageLTPoint.x))
+        var maxY = maxYDis
+        if(flipSide == BOTTOM_SIDE) {
+            maxY = mRightPageRBPoint.y - maxY
+        }
+        // 中间点坐标
+        val midX: Float = if(flipPage == 0){
+            (mLeftPageLTPoint.x + x) / 2
+        } else {
+            (mRightPageRBPoint.x + x) / 2
+        }
+        val midY = (maxY + mStartPoint.y) / 2
+        // 开始点
+        val startX: Float
+        val startY: Float
+        if(flipSide == TOP_SIDE) {
+            startX = mLeftPageRBPoint.x
+            startY = mLeftPageLTPoint.y
+        } else {
+            startX = mLeftPageRBPoint.x
+            startY = mLeftPageRBPoint.y
+        }
+        // 计算页脚能够翻转的最大角度
+        val maxDegree = Math.toDegrees(atan2(abs(midX - startX).toDouble(), abs(midY - startY).toDouble())) * 2
+        offsetY = abs(offsetY)
+        if(offsetY >= abs(maxY - mStartPoint.y)) {
+            offsetY = abs(maxY - mStartPoint.y)
+        }
+        val perDe = (offsetY / abs(maxY - mStartPoint.y)) * maxDegree
+        if(flipSide == BOTTOM_SIDE) {
+           if(y < maxY)  {
+               targetTouchY = maxY
+           }
+        } else {
+            if(y > maxY) {
+                targetTouchY = maxY
+            }
+        }
+        // 转动的半径
+        val r = abs(mStartPoint.y - mOriginalCorner.y)
+        val rad = Math.toRadians(perDe)
+        // 计算边角的坐标
+        if(flipPage == 0) {
+            mCurCornerPoint.x = (x + r * sin(rad)).toFloat()
+        } else {
+            mCurCornerPoint.x = (x - r * sin(rad)).toFloat()
+        }
+        if(flipSide == TOP_SIDE) {
+            mCurCornerPoint.y = (targetTouchY - r * cos(rad)).toFloat()
+        } else {
+            mCurCornerPoint.y = (targetTouchY + r * cos(rad)).toFloat()
+        }
+    }
+
+    // 设置的页脚的顶点
     fun setTouchPoint(x: Float, y: Float) {
-        mTouchPoint.x = x
-        mTouchPoint.y = y
-        invalidate()
+        val targetX = min(max(mLeftPageLTPoint.x, x), mRightPageRBPoint.x)
+        val targetY = min(max(mLeftPageLTPoint.y, y), mRightPageRBPoint.y)
+        covertTouchPointToCurCornerPoint(targetX, targetY)
     }
 
 
@@ -658,25 +778,23 @@ class DoubleRealFlipView @JvmOverloads constructor(
     }
 
     private fun initCornerPoint() {
-        if(curFlipPage == 0) {
+        if(flipPage == 0) {
             if(flipSide == TOP_SIDE) {
-                mCorner.x = mLeftPageLTPoint.x
-                mCorner.y = mLeftPageLTPoint.y
+                mOriginalCorner.x = mLeftPageLTPoint.x
+                mOriginalCorner.y = mLeftPageLTPoint.y
             } else {
-                mCorner.x = mLeftPageLTPoint.x
-                mCorner.y = mLeftPageRBPoint.y
+                mOriginalCorner.x = mLeftPageLTPoint.x
+                mOriginalCorner.y = mLeftPageRBPoint.y
             }
         } else {
             if(flipSide == TOP_SIDE) {
-                mCorner.x = mRightPageRBPoint.x
-                mCorner.y = mRightPageLTPoint.y
+                mOriginalCorner.x = mRightPageRBPoint.x
+                mOriginalCorner.y = mRightPageLTPoint.y
             } else {
-                mCorner.x = mRightPageRBPoint.x
-                mCorner.y = mRightPageRBPoint.y
+                mOriginalCorner.x = mRightPageRBPoint.x
+                mOriginalCorner.y = mRightPageRBPoint.y
             }
         }
         isStopScroll = false
-        Log.d("wangjie", "mCorner.x: ${mCorner.x}, mCorner.y: ${mCorner.y}")
     }
-
 }
