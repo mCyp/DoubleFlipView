@@ -80,7 +80,6 @@ class DoubleFlipView @JvmOverloads constructor(
         distanceX: Float,
         distanceY: Float
     ): Boolean {
-        //Log.d("wangjie", "distanceX:$distanceX, distanceY: $distanceY")
         // 往左上是正
         if(status == STATUS_DOWN || status == STATUS_MOVE) {
             if(distanceX != 0f && status == STATUS_DOWN) {
@@ -96,8 +95,6 @@ class DoubleFlipView @JvmOverloads constructor(
                 status = STATUS_MOVE
             }
             if(status == STATUS_MOVE) {
-                //Log.d("wangjie", "mScroller.startScroll")
-                Log.d("wangjie", "touchPoint: ${e2.x}, ${e2.y}")
                 mDoubleRealFlipView.setTouchPoint(e2.x, e2.y)
                 mDoubleRealFlipView.invalidate()
             }
