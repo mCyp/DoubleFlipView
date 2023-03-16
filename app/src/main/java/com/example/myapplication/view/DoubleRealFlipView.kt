@@ -102,7 +102,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
     private var mTouchDis: Float = 0.0f
     private var per: Float = 1.0f
 
-    var isStopScroll: Boolean = false
+    var isStopScroll: Boolean = true
     var bgColor: Int = 0
 
     private var mColorMatrixFilter: ColorMatrixColorFilter
@@ -235,7 +235,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
             mBezierControl2.y - abs((mBezierControl1.x - mBezierStart1.x) / (mOriginalCorner.x - mBezierControl1.x)) * (mOriginalCorner.y - mBezierControl2.y)
         mBezierEnd1 = getCross(mCurCornerPoint, mBezierControl1, mBezierStart1, mBezierStart2)
         mBezierEnd2 = getCross(mCurCornerPoint, mBezierControl2, mBezierStart1, mBezierStart2)
-        //Log.d("wangjie", "mBezierStart1:$mBezierStart1, mBezierControl1: $mBezierControl1, mBezierEnd1: $mBezierEnd1, mCurCornerPoint: $mCurCornerPoint")
+        //Log.d("jj", "mBezierStart1:$mBezierStart1, mBezierControl1: $mBezierControl1, mBezierEnd1: $mBezierEnd1, mCurCornerPoint: $mCurCornerPoint")
         mBezierVertex1.x = (mBezierStart1.x + 2 * mBezierControl1.x + mBezierEnd1.x) / 4
         mBezierVertex1.y = (2 * mBezierControl1.y + mBezierStart1.y + mBezierEnd1.y) / 4
         mBezierVertex2.x = (mBezierStart2.x + 2 * mBezierControl2.x + mBezierEnd2.x) / 4
@@ -277,7 +277,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         mBezierVertex1.y = mOriginalCorner.y
         mBezierVertex2.x = mOriginalCorner.x
         mBezierVertex2.y = mOriginalCorner.y
-        Log.d("wangjie", "reset mBezierStart1:$mBezierStart1, mBezierControl1: $mBezierControl1, mBezierEnd1: $mBezierEnd1, mCurCornerPoint: $mCurCornerPoint")
+        //Log.d("jj", "reset mBezierStart1:$mBezierStart1, mBezierControl1: $mBezierControl1, mBezierEnd1: $mBezierEnd1, mCurCornerPoint: $mCurCornerPoint")
         flipPath.reset()
     }
 

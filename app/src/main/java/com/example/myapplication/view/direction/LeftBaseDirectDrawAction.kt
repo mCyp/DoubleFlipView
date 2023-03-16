@@ -2,10 +2,7 @@ package com.example.myapplication.view.direction
 
 import android.graphics.*
 import android.os.Build
-import android.util.Log
 import com.example.myapplication.view.DeviceUtil
-import com.example.myapplication.view.DirectDrawAction
-import com.qidian.fonttest.view.OUT_LEN
 import com.qidian.fonttest.view.TOP_SIDE
 import kotlin.math.*
 
@@ -100,7 +97,7 @@ abstract class LeftBaseDirectDrawAction: BaseDirectDrawAction() {
         mPaint: Paint,
         mTouchDis: Float,
         per: Float,
-        minDisTance: Float
+        minDis: Float
     ) {
         canvas.save()
         reUsePath.reset()
@@ -124,8 +121,8 @@ abstract class LeftBaseDirectDrawAction: BaseDirectDrawAction() {
         val rectHeight = hypot((mBezierStart1.x - mBezierStart2.x).toDouble(), (mBezierStart1.y - mBezierStart2.y).toDouble())
         val right: Float = mBezierStart1.x
 
-        val minDis = if(context != null) DeviceUtil.dip2px(context!!, 20f) else 30
-        left = right - (minDisTance + max((mTouchDis / 4 - minDisTance) * per * 0.2f, minDis.toFloat()))
+        val minDistance = if(context != null) DeviceUtil.dip2px(context!!, 20f) else 30
+        left = right - (minDis + max((mTouchDis / 4 - minDis) * per * 0.2f, minDistance.toFloat()))
         if(flipSide() == TOP_SIDE) {
             top = mBezierStart1.y
             bottom = mBezierStart1.y + rectHeight.toFloat()
@@ -213,7 +210,6 @@ abstract class LeftBaseDirectDrawAction: BaseDirectDrawAction() {
 
         // 3. 设置阴影
         canvas.translate(-mRightPageLTPoint.x, -mRightPageLTPoint.y)
-        val minDis = mTouchDis / 8
         val rectHeight = hypot((mBezierStart1.x - mBezierStart2.x).toDouble(), (mBezierStart1.y - mBezierStart2.y).toDouble())
         val left: Float
         val right: Float
