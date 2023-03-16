@@ -99,7 +99,9 @@ abstract class RightBaseDirectDrawAction: BaseDirectDrawAction() {
         mBezierStart1: PointF,
         mBezierStart2: PointF,
         mPaint: Paint,
-        mTouchDis: Float
+        mTouchDis: Float,
+        per: Float,
+        minDistance: Float
     ) {
         canvas.save()
         // 绘制内容部分
@@ -124,7 +126,9 @@ abstract class RightBaseDirectDrawAction: BaseDirectDrawAction() {
         var bottom = 0f
         val rectHeight = hypot((mBezierStart1.x - mBezierStart2.x).toDouble(), (mBezierStart1.y - mBezierStart2.y).toDouble())
         left = mBezierStart1.x
-        right = left + mTouchDis / 4
+
+        val minDis = if(context != null) DeviceUtil.dip2px(context!!, 20f) else 30
+        right = left + (minDistance + max((mTouchDis / 4 - minDistance) * per * 0.2f, minDis.toFloat()))
         if(flipSide() == TOP_SIDE) {
             top = mBezierStart1.y
             bottom = mBezierStart1.y + rectHeight.toFloat()
@@ -212,7 +216,7 @@ abstract class RightBaseDirectDrawAction: BaseDirectDrawAction() {
         val top: Float
         val rotateDegree: Float
         left = mBezierStart1.x - 1
-        right = mBezierStart1.x + minDis + 1
+        right = mBezierVertex1.x + 1
         if(flipSide() == TOP_SIDE) {
             top = mBezierStart1.y
             bottom = top + rectHeight.toFloat()
@@ -224,7 +228,7 @@ abstract class RightBaseDirectDrawAction: BaseDirectDrawAction() {
         }
         mPaint.shader = getGradient(left, mBezierStart1.y, right, mBezierStart1.y, shadowReverseColors)
         canvas.rotate(rotateDegree, mBezierStart1.x, mBezierStart1.y)
-        canvas.drawRect(left, top, right, bottom, mPaint)
+        //canvas.drawRect(left, top, right, bottom, mPaint)
         canvas.restore()
     }
 }

@@ -3,6 +3,7 @@ package com.example.myapplication.view.direction
 import android.graphics.*
 import android.os.Build
 import android.util.Log
+import com.example.myapplication.view.DeviceUtil
 import com.example.myapplication.view.DirectDrawAction
 import com.qidian.fonttest.view.OUT_LEN
 import com.qidian.fonttest.view.TOP_SIDE
@@ -97,7 +98,9 @@ abstract class LeftBaseDirectDrawAction: BaseDirectDrawAction() {
         mBezierStart1: PointF,
         mBezierStart2: PointF,
         mPaint: Paint,
-        mTouchDis: Float
+        mTouchDis: Float,
+        per: Float,
+        minDisTance: Float
     ) {
         canvas.save()
         reUsePath.reset()
@@ -120,7 +123,9 @@ abstract class LeftBaseDirectDrawAction: BaseDirectDrawAction() {
         var bottom = 0f
         val rectHeight = hypot((mBezierStart1.x - mBezierStart2.x).toDouble(), (mBezierStart1.y - mBezierStart2.y).toDouble())
         val right: Float = mBezierStart1.x
-        left = right - mTouchDis / 4
+
+        val minDis = if(context != null) DeviceUtil.dip2px(context!!, 20f) else 30
+        left = right - (minDisTance + max((mTouchDis / 4 - minDisTance) * per * 0.2f, minDis.toFloat()))
         if(flipSide() == TOP_SIDE) {
             top = mBezierStart1.y
             bottom = mBezierStart1.y + rectHeight.toFloat()
@@ -215,7 +220,8 @@ abstract class LeftBaseDirectDrawAction: BaseDirectDrawAction() {
         val bottom: Float
         val top: Float
         val rotateDegree: Float
-        left = mBezierStart1.x - minDis - 1
+        // 绘制在BezierControl
+        left = mBezierVertex1.x - 1
         right = mBezierStart1.x + 1
         if(flipSide() == TOP_SIDE) {
             top = mBezierStart1.y

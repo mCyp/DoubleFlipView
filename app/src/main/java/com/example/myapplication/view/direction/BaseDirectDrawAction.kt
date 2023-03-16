@@ -1,7 +1,9 @@
 package com.example.myapplication.view.direction
 
+import android.content.Context
 import android.graphics.*
 import android.os.Build
+import android.util.Log
 import com.example.myapplication.view.DirectDrawAction
 import com.qidian.fonttest.view.OUT_LEN
 import com.qidian.fonttest.view.TOP_SIDE
@@ -24,6 +26,7 @@ abstract class BaseDirectDrawAction: DirectDrawAction {
     lateinit var mRightPageLTPoint: PointF
     lateinit var mRightPageRBPoint: PointF
 
+    var context: Context? = null
     var bgColor: Int = 0
 
 
@@ -44,29 +47,54 @@ abstract class BaseDirectDrawAction: DirectDrawAction {
         mOriginalCorner: PointF,
         mPaint: Paint
     ) {
+        // 这里写的很那看，后续优化一下
         val outPoint = PointF()
-        // 设置阴影的顶点
-        val rad = Math.toRadians(mDegree)
-        if (flipPage() == 0) {
-            outPoint.x = mCurCornerPoint.x + OUT_LEN * sin(rad).toFloat()
-        } else {
-            outPoint.x = mCurCornerPoint.x - OUT_LEN * sin(rad).toFloat()
-        }
-        if (flipSide() == TOP_SIDE) {
-            outPoint.y = mCurCornerPoint.y + OUT_LEN * cos(rad).toFloat()
-        } else {
-            outPoint.y = mCurCornerPoint.y - OUT_LEN * cos(rad).toFloat()
-        }
         // 计算旋转的角度
         var deOne = Math.toDegrees(
             atan2(
-                (mCurCornerPoint.x - mBezierControl1.x).toDouble(),
-                (mBezierControl1.y - mCurCornerPoint.y).toDouble()
+                (mBezierControl1.y - mCurCornerPoint.y).toDouble(),
+                (mCurCornerPoint.x - mBezierControl1.x).toDouble()
             )
         )
-        if(deOne > 90){
-            deOne -= 180f
+        if(flipPage() == 0) {
+            if(flipSide() == TOP_SIDE) {
+                deOne = abs(deOne)
+            }
+        } else {
+            if(flipSide() == TOP_SIDE) {
+                deOne = 180 - abs(deOne)
+            } else {
+                deOne = 180 - deOne
+            }
         }
+        // 设置阴影的顶点
+        val rad = Math.toRadians(deOne - 45f)
+        // 求顶点
+        if (flipPage() == 0) {
+            outPoint.x = mCurCornerPoint.x + OUT_LEN * 1.414f * cos(rad).toFloat()
+        } else {
+            outPoint.x = mCurCornerPoint.x - OUT_LEN * 1.414f * cos(rad).toFloat()
+        }
+        if (flipSide() == TOP_SIDE) {
+            outPoint.y = mCurCornerPoint.y + OUT_LEN * sin(rad).toFloat()
+        } else {
+            outPoint.y = mCurCornerPoint.y - OUT_LEN * sin(rad).toFloat()
+        }
+
+        if(flipPage() == 0) {
+            if(flipSide() == TOP_SIDE) {
+                deOne -= 90
+            } else {
+                deOne = 90 - deOne
+            }
+        } else {
+            if(flipSide() == TOP_SIDE) {
+                deOne = 90 - deOne
+            } else {
+                deOne -= 90
+            }
+        }
+
         // 绘制一半的阴影
         canvas.save()
         // 不同页面翻转的角度不一致
@@ -89,9 +117,9 @@ abstract class BaseDirectDrawAction: DirectDrawAction {
         canvas.rotate(deOne.toFloat(), outPoint.x, outPoint.y)
         val colors = shadowReverseColors
         val rightFirst = if(flipPage() == 0) {
-            (outPoint.x - cos(rad) * OUT_LEN - 1).toFloat()
+            (outPoint.x -  OUT_LEN)
         } else {
-            (outPoint.x + cos(rad) * OUT_LEN + 1).toFloat()
+            (outPoint.x +  OUT_LEN)
         }
         val bottomFirst = if(flipSide() == TOP_SIDE) {
             outPoint.y - abs(mOriginalCorner.x - mBezierControl1.x)
@@ -123,9 +151,9 @@ abstract class BaseDirectDrawAction: DirectDrawAction {
 
         val secondColors = shadowReverseColors
         val secondBottom: Float = if(flipSide() == TOP_SIDE) {
-            (outPoint.y - abs(sin(rad)) * OUT_LEN).toFloat() - 1
+            outPoint.y - OUT_LEN
         } else {
-            (outPoint.y + abs(sin(rad)) * OUT_LEN).toFloat() + 1
+            outPoint.y +  OUT_LEN
         }
         val secondRight = if(flipPage() == 0) {
             outPoint.x - abs(mOriginalCorner.y - mBezierControl2.y)

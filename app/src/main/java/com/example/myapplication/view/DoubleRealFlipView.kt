@@ -100,6 +100,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
     private var flipSide = 0
     private var mDegree: Double = 0.0
     private var mTouchDis: Float = 0.0f
+    private var per: Float = 1.0f
 
     var isStopScroll: Boolean = false
     var bgColor: Int = 0
@@ -147,6 +148,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         directDrawAction.mLeftPageRBPoint = mLeftPageRBPoint
         directDrawAction.mRightPageLTPoint = mRightPageLTPoint
         directDrawAction.mRightPageRBPoint = mRightPageRBPoint
+        directDrawAction.context = context
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -190,7 +192,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
     }
 
     private fun drawFlipPageBottomPageContent(canvas: Canvas) {
-        directDrawAction.drawFlipPageBottomPageContent(canvas, reUsePath, flipPath, mDegree, mBezierStart1, mBezierStart2, mPaint, mTouchDis)
+        directDrawAction.drawFlipPageBottomPageContent(canvas, reUsePath, flipPath, mDegree, mBezierStart1, mBezierStart2, mPaint, mTouchDis, per, abs(mBezierStart1.x - mBezierControl1.x))
     }
 
     private fun drawFlipPageContent(canvas: Canvas) {
@@ -233,6 +235,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
             mBezierControl2.y - abs((mBezierControl1.x - mBezierStart1.x) / (mOriginalCorner.x - mBezierControl1.x)) * (mOriginalCorner.y - mBezierControl2.y)
         mBezierEnd1 = getCross(mCurCornerPoint, mBezierControl1, mBezierStart1, mBezierStart2)
         mBezierEnd2 = getCross(mCurCornerPoint, mBezierControl2, mBezierStart1, mBezierStart2)
+        //Log.d("wangjie", "mBezierStart1:$mBezierStart1, mBezierControl1: $mBezierControl1, mBezierEnd1: $mBezierEnd1, mCurCornerPoint: $mCurCornerPoint")
         mBezierVertex1.x = (mBezierStart1.x + 2 * mBezierControl1.x + mBezierEnd1.x) / 4
         mBezierVertex1.y = (2 * mBezierControl1.y + mBezierStart1.y + mBezierEnd1.y) / 4
         mBezierVertex2.x = (mBezierStart2.x + 2 * mBezierControl2.x + mBezierEnd2.x) / 4
@@ -266,21 +269,16 @@ class DoubleRealFlipView @JvmOverloads constructor(
         mBezierStart1.y = mOriginalCorner.y
         mBezierStart2.x = mOriginalCorner.x
         mBezierStart2.y = mBezierControl2.y - (mOriginalCorner.y - mBezierControl2.y) / 2
-        mBezierEnd1 = getCross(mCurCornerPoint, mBezierControl1, mBezierStart1, mBezierStart2)
-        mBezierEnd2 = getCross(mCurCornerPoint, mBezierControl2, mBezierStart1, mBezierStart2)
-        mBezierVertex1.x = (mBezierStart1.x + 2 * mBezierControl1.x + mBezierEnd1.x) / 4
-        mBezierVertex1.y = (2 * mBezierControl1.y + mBezierStart1.y + mBezierEnd1.y) / 4
-        mBezierVertex2.x = (mBezierStart2.x + 2 * mBezierControl2.x + mBezierEnd2.x) / 4
-        mBezierVertex2.y = (2 * mBezierControl2.y + mBezierStart2.y + mBezierEnd2.y) / 4
-
+        mBezierEnd1.x = mOriginalCorner.x
+        mBezierEnd1.y = mOriginalCorner.y
+        mBezierEnd2.x = mOriginalCorner.x
+        mBezierEnd2.y = mOriginalCorner.y
+        mBezierVertex1.x = mOriginalCorner.x
+        mBezierVertex1.y = mOriginalCorner.y
+        mBezierVertex2.x = mOriginalCorner.x
+        mBezierVertex2.y = mOriginalCorner.y
+        Log.d("wangjie", "reset mBezierStart1:$mBezierStart1, mBezierControl1: $mBezierControl1, mBezierEnd1: $mBezierEnd1, mCurCornerPoint: $mCurCornerPoint")
         flipPath.reset()
-        flipPath.moveTo(mBezierStart1.x, mBezierStart1.y)
-        flipPath.quadTo(mBezierControl1.x, mBezierControl1.y, mBezierEnd1.x, mBezierEnd1.y)
-        flipPath.lineTo(mCurCornerPoint.x, mCurCornerPoint.y)
-        flipPath.lineTo(mBezierEnd2.x, mBezierEnd2.y)
-        flipPath.quadTo(mBezierControl2.x, mBezierControl2.y, mBezierStart2.x, mBezierStart2.y)
-        flipPath.lineTo(mOriginalCorner.x, mOriginalCorner.y)
-        flipPath.close()
     }
 
     /**
@@ -362,6 +360,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         directDrawAction.mLeftPageRBPoint = mLeftPageRBPoint
         directDrawAction.mRightPageLTPoint = mRightPageLTPoint
         directDrawAction.mRightPageRBPoint = mRightPageRBPoint
+        directDrawAction.context = context
     }
 
     private fun covertTouchPointToCurCornerPoint(x: Float, y: Float) {
@@ -426,6 +425,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         if(offsetY >= abs(maxY - mStartPoint.y)) {
             offsetY = abs(maxY - mStartPoint.y)
         }
+        per = 1 - offsetY / abs(maxY - mStartPoint.y)
         val perDe = (offsetY / abs(maxY - mStartPoint.y)) * maxDegree
         if(flipSide == BOTTOM_SIDE) {
            if(y < maxY)  {
