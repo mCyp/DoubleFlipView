@@ -208,7 +208,7 @@ abstract class LeftBaseDirectDrawAction: BaseDirectDrawAction() {
         }
         mPaint.colorFilter = null
 
-        // 3. 设置阴影
+        // 3. 绘制背部的阴影
         canvas.translate(-mRightPageLTPoint.x, -mRightPageLTPoint.y)
         val rectHeight = hypot((mBezierStart1.x - mBezierStart2.x).toDouble(), (mBezierStart1.y - mBezierStart2.y).toDouble())
         val left: Float

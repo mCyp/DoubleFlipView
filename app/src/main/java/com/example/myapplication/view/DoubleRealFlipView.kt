@@ -25,8 +25,8 @@ class DoubleRealFlipView @JvmOverloads constructor(
     defStyleInt: Int = 0
 ) : View(context, attrs, defStyleInt) {
 
-    // 2. 修正阴影 1h
-    // 3. 优化手势和动画
+    // 1. 修正内容白边的问题
+    // 2. 优化手势和动画
 
     // 背景色需要调整
     // 一页的宽高比 9:18 --- 1:1

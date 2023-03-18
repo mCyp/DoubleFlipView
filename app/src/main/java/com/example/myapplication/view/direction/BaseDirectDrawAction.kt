@@ -3,7 +3,7 @@ package com.example.myapplication.view.direction
 import android.content.Context
 import android.graphics.*
 import android.os.Build
-import android.util.Log
+import com.example.myapplication.view.DeviceUtil
 import com.example.myapplication.view.DirectDrawAction
 import com.qidian.fonttest.view.OUT_LEN
 import com.qidian.fonttest.view.TOP_SIDE
@@ -47,55 +47,54 @@ abstract class BaseDirectDrawAction: DirectDrawAction {
         mOriginalCorner: PointF,
         mPaint: Paint
     ) {
-        // 这里写的很那看，后续优化一下
+        // 绘制翻转的时候，页脚的阴影
         val outPoint = PointF()
         // 计算旋转的角度
-        var deOne = Math.toDegrees(
+        var offsetDegree = Math.toDegrees(
             atan2(
                 (mBezierControl1.y - mCurCornerPoint.y).toDouble(),
                 (mCurCornerPoint.x - mBezierControl1.x).toDouble()
             )
         )
+        // 计算页面偏移角度，页面不同，造成旋转的偏角不同
         if(flipPage() == 0) {
             if(flipSide() == TOP_SIDE) {
-                deOne = abs(deOne)
+                offsetDegree = abs(offsetDegree)
             }
         } else {
-            if(flipSide() == TOP_SIDE) {
-                deOne = 180 - abs(deOne)
+            offsetDegree = if(flipSide() == TOP_SIDE) {
+                180 - abs(offsetDegree)
             } else {
-                deOne = 180 - deOne
+                180 - offsetDegree
             }
         }
-        // 设置阴影的顶点
-        val rad = Math.toRadians(deOne - 45f)
-        // 求顶点
+        // 阴影的顶点还有偏移 45 度
+        val rad = Math.toRadians(offsetDegree - 45f)
+        // 求阴影的顶点
         if (flipPage() == 0) {
-            outPoint.x = mCurCornerPoint.x + OUT_LEN * 1.414f * cos(rad).toFloat()
+            outPoint.x = mCurCornerPoint.x + OUT_LEN * sqrt(2f) * cos(rad).toFloat()
         } else {
-            outPoint.x = mCurCornerPoint.x - OUT_LEN * 1.414f * cos(rad).toFloat()
+            outPoint.x = mCurCornerPoint.x - OUT_LEN * sqrt(2f) * cos(rad).toFloat()
         }
         if (flipSide() == TOP_SIDE) {
-            outPoint.y = mCurCornerPoint.y + OUT_LEN * sin(rad).toFloat()
+            outPoint.y = mCurCornerPoint.y + OUT_LEN * sqrt(2f) * sin(rad).toFloat()
         } else {
-            outPoint.y = mCurCornerPoint.y - OUT_LEN * sin(rad).toFloat()
+            outPoint.y = mCurCornerPoint.y - OUT_LEN * sqrt(2f) * sin(rad).toFloat()
         }
-
+        // 纵轴 - 左右方向的阴影需要旋转的角度
         if(flipPage() == 0) {
             if(flipSide() == TOP_SIDE) {
-                deOne -= 90
+                offsetDegree -= 90
             } else {
-                deOne = 90 - deOne
+                offsetDegree = 90 - offsetDegree
             }
         } else {
             if(flipSide() == TOP_SIDE) {
-                deOne = 90 - deOne
+                offsetDegree = 90 - offsetDegree
             } else {
-                deOne -= 90
+                offsetDegree -= 90
             }
         }
-
-        // 绘制一半的阴影
         canvas.save()
         // 不同页面翻转的角度不一致
         reUsePath.reset()
@@ -114,7 +113,7 @@ abstract class BaseDirectDrawAction: DirectDrawAction {
         } catch (e: Exception) {
             // Logger.exception(e);
         }
-        canvas.rotate(deOne.toFloat(), outPoint.x, outPoint.y)
+        canvas.rotate(offsetDegree.toFloat(), outPoint.x, outPoint.y)
         val colors = shadowReverseColors
         val rightFirst = if(flipPage() == 0) {
             (outPoint.x -  OUT_LEN)
@@ -129,7 +128,7 @@ abstract class BaseDirectDrawAction: DirectDrawAction {
         mPaint.shader = getGradient(outPoint.x, mBezierControl1.y, rightFirst, mBezierControl1.y, colors)
         canvas.drawRect(outPoint.x, outPoint.y, rightFirst, bottomFirst ,mPaint)
         canvas.restore()
-
+        // 绘制纵轴上下方向的阴影
         canvas.save()
         reUsePath.reset()
         reUsePath.moveTo(outPoint.x, outPoint.y)
@@ -147,8 +146,7 @@ abstract class BaseDirectDrawAction: DirectDrawAction {
         } catch (e: Exception) {
             // Logger.exception(e);
         }
-        canvas.rotate(deOne.toFloat(), outPoint.x, outPoint.y)
-
+        canvas.rotate(offsetDegree.toFloat(), outPoint.x, outPoint.y)
         val secondColors = shadowReverseColors
         val secondBottom: Float = if(flipSide() == TOP_SIDE) {
             outPoint.y - OUT_LEN
