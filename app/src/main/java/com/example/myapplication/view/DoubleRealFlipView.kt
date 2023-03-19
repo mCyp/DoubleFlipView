@@ -1,11 +1,16 @@
 package com.qidian.fonttest.view
 
+import android.animation.Animator
+import android.animation.Animator.AnimatorListener
+import android.animation.TypeEvaluator
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
 import com.example.myapplication.view.DeviceUtil
+import com.example.myapplication.view.PageFlipListener
 import com.example.myapplication.view.direction.*
 import kotlin.math.*
 
@@ -25,7 +30,6 @@ class DoubleRealFlipView @JvmOverloads constructor(
     defStyleInt: Int = 0
 ) : View(context, attrs, defStyleInt) {
 
-    // 1. 修正内容白边的问题
     // 2. 优化手势和动画
 
     // 背景色需要调整
@@ -110,6 +114,9 @@ class DoubleRealFlipView @JvmOverloads constructor(
     private val r = DeviceUtil.dip2px(context, 13f)
 
     private lateinit var directDrawAction: BaseDirectDrawAction
+    // 动画相关
+    var pageFlipListener: PageFlipListener? = null
+    private var curAnimator: ValueAnimator? = null
 
     init {
         val array = floatArrayOf(0.55f, 0f, 0f, 0f, 80.0f, 0f, 0.55f, 0f, 0f, 80.0f, 0f, 0f, 0.55f, 0f, 80.0f, 0f, 0f, 0f, 0.2f, 0f)
@@ -151,11 +158,16 @@ class DoubleRealFlipView @JvmOverloads constructor(
         directDrawAction.context = context
     }
 
+    private fun isOnOriginPoint(): Boolean {
+        return (mCurCornerPoint.x == mOriginalCorner.x)
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        if (isStopScroll) {
+        if (isStopScroll || isOnOriginPoint()) {
             resetPoint()
+            Log.d("wangjie", "resetPoint")
         } else {
             calculatePoint()
         }
@@ -207,7 +219,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
         directDrawAction.drawNoFlipSide(canvas, reUsePath, r)
     }
 
-    private fun calculatePoint() {
+    private fun calculatePointInNormal() {
         mMiddlePoint.x = (mCurCornerPoint.x + mOriginalCorner.x) / 2
         mMiddlePoint.y = (mCurCornerPoint.y + mOriginalCorner.y) / 2
         mBezierControl1.x =
@@ -240,11 +252,16 @@ class DoubleRealFlipView @JvmOverloads constructor(
         mBezierVertex1.y = (2 * mBezierControl1.y + mBezierStart1.y + mBezierEnd1.y) / 4
         mBezierVertex2.x = (mBezierStart2.x + 2 * mBezierControl2.x + mBezierEnd2.x) / 4
         mBezierVertex2.y = (2 * mBezierControl2.y + mBezierStart2.y + mBezierEnd2.y) / 4
-        // fixme 注意场景，不能为90度
+
 
         mDegree = Math.toDegrees(atan2((abs(mOriginalCorner.y - mBezierControl2.y)).toDouble(), (abs(mOriginalCorner.x - mBezierControl1.x)).toDouble()))
         mTouchDis = hypot((mCurCornerPoint.x - mOriginalCorner.x).toDouble(), (mCurCornerPoint.y - mOriginalCorner.y).toDouble()).toFloat()
+    }
 
+    private fun calculatePoint() {
+        calculatePointInNormal()
+        /*Log.d("jj", "mBezierStart1:$mBezierStart1, mBezierControl1: $mBezierControl1, mBezierEnd1: $mBezierEnd1, mCurCornerPoint: $mCurCornerPoint, mBezierVertex1: $mBezierVertex1")
+        Log.d("jj", "mBezierStart2:$mBezierStart2, mBezierControl2: $mBezierControl2, mBezierEnd2: $mBezierEnd2, mOriginalCorner: $mOriginalCorner, mBezierVertex2: $mBezierVertex2")*/
         flipPath.reset()
         flipPath.moveTo(mBezierStart1.x, mBezierStart1.y)
         flipPath.quadTo(mBezierControl1.x, mBezierControl1.y, mBezierEnd1.x, mBezierEnd1.y)
@@ -259,8 +276,6 @@ class DoubleRealFlipView @JvmOverloads constructor(
         mCurCornerPoint.x = 0f
         mCurCornerPoint.y = 0f
         flipPage = 0
-        mMiddlePoint.x = 0f
-        mMiddlePoint.y = 0f
         mBezierControl1.x = 0f
         mBezierControl1.y = 0f
         mBezierControl2.x = 0f
@@ -364,6 +379,10 @@ class DoubleRealFlipView @JvmOverloads constructor(
     }
 
     private fun covertTouchPointToCurCornerPoint(x: Float, y: Float) {
+        if(x == mOriginalCorner.x) {
+            return
+        }
+
         var targetTouchY = y
         // 1. 方向是否发生变更
         var offsetY = y - mStartPoint.y
@@ -460,7 +479,7 @@ class DoubleRealFlipView @JvmOverloads constructor(
     }
 
 
-    fun stopScroll() {
+    fun resetScrollTag() {
         isStopScroll = true
     }
 
@@ -483,5 +502,117 @@ class DoubleRealFlipView @JvmOverloads constructor(
             }
         }
         isStopScroll = false
+    }
+
+    fun cancelAnimation(){
+        curAnimator?.apply {
+            if(isRunning) {
+                cancel()
+            }
+        }
+    }
+
+    fun onTap(x: Float) {
+        val tapAreaWidth = pageWidth / 3
+        when(x) {
+            in mLeftPageLTPoint.x .. (mLeftPageLTPoint.x + tapAreaWidth) -> {
+                animPrePage()
+            }
+            in (mRightPageRBPoint.x - tapAreaWidth) .. mRightPageRBPoint.x -> {
+                animNextPage()
+            }
+        }
+    }
+
+    fun animPrePage() {
+        cancelAnimation()
+        val centerY = (mLeftPageLTPoint.y + mRightPageRBPoint.y) / 2
+        prepareOnDown(mLeftPageLTPoint.x, centerY)
+        prePareDirection(DIRECT_TR)
+        val animator = ValueAnimator.ofObject(PointTypeEvaluator(), PointF(mLeftPageLTPoint.x + 100, centerY + 6), PointF(mRightPageRBPoint.x - 100, centerY + 6))
+        animator.addUpdateListener {
+            val point = it.animatedValue as PointF
+            // 更新坐标
+            setTouchPoint(point.x, point.y)
+            invalidate()
+        }
+        animator.addListener(object : AnimatorListener{
+            override fun onAnimationStart(animation: Animator?) {
+            }
+
+            override fun onAnimationEnd(animation: Animator?) {
+                pageFlipListener?.onPrePage()
+            }
+
+            override fun onAnimationCancel(animation: Animator?) {
+            }
+
+            override fun onAnimationRepeat(animation: Animator?) {
+            }
+        })
+        animator.duration = 200
+        animator.start()
+        curAnimator = animator
+    }
+
+    fun animNextPage() {
+        cancelAnimation()
+        val centerY = (mLeftPageLTPoint.y + mRightPageRBPoint.y) / 2
+        prepareOnDown(mRightPageRBPoint.x, centerY)
+        prePareDirection(DIRECT_TL)
+        val animator = ValueAnimator.ofObject(PointTypeEvaluator(), PointF(mRightPageRBPoint.x - 100, centerY + 6), PointF(mLeftPageLTPoint.x + 100, centerY + 6))
+        animator.addUpdateListener {
+            val point = it.animatedValue as PointF
+            // 更新坐标
+            setTouchPoint(point.x, point.y)
+            invalidate()
+        }
+        animator.addListener(object : AnimatorListener{
+            override fun onAnimationStart(animation: Animator?) {
+            }
+
+            override fun onAnimationEnd(animation: Animator?) {
+                pageFlipListener?.onNextPage()
+            }
+
+            override fun onAnimationCancel(animation: Animator?) {
+            }
+
+            override fun onAnimationRepeat(animation: Animator?) {
+            }
+        })
+        animator.duration = 200
+        animator.start()
+        curAnimator = animator
+    }
+
+    fun release(x: Float): Boolean {
+        when(x) {
+            in mLeftPageLTPoint.x .. mLeftPageRBPoint.x -> {
+                if(flipPage == 1) {
+                    pageFlipListener?.onNextPage()
+                    return true
+                }
+            }
+            in mRightPageLTPoint.x .. mRightPageRBPoint.x -> {
+                if(flipPage == 0) {
+                    pageFlipListener?.onPrePage()
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    class PointTypeEvaluator: TypeEvaluator<PointF> {
+        private val targetPoint = PointF()
+
+        override fun evaluate(fraction: Float, startValue: PointF, endValue: PointF): PointF {
+            val xOffset = endValue.x - startValue.x
+            val yOffset = endValue.y - startValue.y
+            targetPoint.x = startValue.x + xOffset * fraction
+            targetPoint.y = startValue.y + yOffset * fraction
+            return targetPoint
+        }
     }
 }

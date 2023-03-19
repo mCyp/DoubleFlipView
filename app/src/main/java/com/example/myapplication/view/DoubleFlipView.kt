@@ -2,12 +2,13 @@ package com.example.myapplication.view
 
 import android.content.Context
 import android.util.AttributeSet
-import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import androidx.core.view.GestureDetectorCompat
 import com.qidian.fonttest.view.*
+import kotlin.math.abs
 
 private const val STATUS_NONE = 0
 private const val STATUS_DOWN = 1
@@ -46,12 +47,16 @@ class DoubleFlipView @JvmOverloads constructor(
                 MotionEvent.ACTION_UP -> {
                     // 翻页或者取消翻页
                     status = STATUS_NONE
-                    mDoubleRealFlipView.stopScroll()
+                    if(!mDoubleRealFlipView.release(e.x)) {
+                        mDoubleRealFlipView.resetScrollTag()
+                    }
+                    mDoubleRealFlipView.invalidate()
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     // 翻页
                     status = STATUS_NONE
-                    mDoubleRealFlipView.stopScroll()
+                    mDoubleRealFlipView.resetScrollTag()
+                    mDoubleRealFlipView.invalidate()
                 }
             }
         }
@@ -70,8 +75,14 @@ class DoubleFlipView @JvmOverloads constructor(
     }
 
     override fun onSingleTapUp(e: MotionEvent?): Boolean {
-        // 根据位置翻页
+        e?.let {
+            mDoubleRealFlipView.onTap(it.x)
+        }
         return true
+    }
+
+    fun reset() {
+        mDoubleRealFlipView.resetScrollTag()
     }
 
     override fun onScroll(
@@ -82,7 +93,7 @@ class DoubleFlipView @JvmOverloads constructor(
     ): Boolean {
         // 往左上是正
         if(status == STATUS_DOWN || status == STATUS_MOVE) {
-            if(distanceX != 0f && status == STATUS_DOWN) {
+            if(distanceX != 0f && status == STATUS_DOWN && abs(distanceX) > ViewConfiguration.get(context).scaledTouchSlop) {
                 if(distanceX > 0 && distanceY > 0) {
                     mDoubleRealFlipView.prePareDirection(DIRECT_TL)
                 } else if (distanceX > 0 && distanceY <= 0) {
@@ -100,6 +111,10 @@ class DoubleFlipView @JvmOverloads constructor(
             }
         }
         return true
+    }
+
+    fun setPageFlipListener(listener: PageFlipListener) {
+        mDoubleRealFlipView.pageFlipListener = listener
     }
 
     override fun onLongPress(e: MotionEvent?) {
