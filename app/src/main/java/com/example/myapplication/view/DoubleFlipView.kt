@@ -47,7 +47,7 @@ class DoubleFlipView @JvmOverloads constructor(
                 MotionEvent.ACTION_UP -> {
                     // 翻页或者取消翻页
                     status = STATUS_NONE
-                    if(!mDoubleRealFlipView.release(e.x)) {
+                    if(!mDoubleRealFlipView.release(e.x, e.y)) {
                         mDoubleRealFlipView.resetScrollTag()
                     }
                     mDoubleRealFlipView.invalidate()

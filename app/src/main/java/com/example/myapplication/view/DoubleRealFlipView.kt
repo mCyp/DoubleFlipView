@@ -29,13 +29,10 @@ class DoubleRealFlipView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyleInt: Int = 0
 ) : View(context, attrs, defStyleInt) {
-
-    // 2. 优化手势和动画
-
+    // fixme 需要处理的问题
+    // 1. 取消的时候是否需要动画
     // 背景色需要调整
-    // 一页的宽高比 9:18 --- 1:1
     // 横屏的时候采用
-    // 每一页的宽高应该提前计算好
 
     // 需要同时准备6页数据 可不可以优化一点？
     var mLeftBottomBitmap: Bitmap? = null
@@ -524,12 +521,23 @@ class DoubleRealFlipView @JvmOverloads constructor(
         }
     }
 
-    fun animPrePage() {
+    private fun animPrePage(isFullAnim: Boolean = true, touchX: Float = 0f, touchY: Float = 0f) {
         cancelAnimation()
-        val centerY = (mLeftPageLTPoint.y + mRightPageRBPoint.y) / 2
-        prepareOnDown(mLeftPageLTPoint.x, centerY)
+
+        var startTouchY = (mLeftPageLTPoint.y + mRightPageRBPoint.y) / 2
+        var startTouchX = mLeftPageLTPoint.x + 50
+        var endTouchY = (mLeftPageLTPoint.y + mRightPageRBPoint.y) / 2
+        val endTouchX = mRightPageRBPoint.x - 20
+        if(isFullAnim) {
+            prepareOnDown(mLeftPageLTPoint.x, endTouchY)
+            endTouchY += 6
+        } else {
+            startTouchX = touchX
+            startTouchY = touchY
+            endTouchY = mStartPoint.y
+        }
         prePareDirection(DIRECT_TR)
-        val animator = ValueAnimator.ofObject(PointTypeEvaluator(), PointF(mLeftPageLTPoint.x + 100, centerY + 6), PointF(mRightPageRBPoint.x - 100, centerY + 6))
+        val animator = ValueAnimator.ofObject(PointTypeEvaluator(), PointF(startTouchX, startTouchY), PointF(endTouchX, endTouchY))
         animator.addUpdateListener {
             val point = it.animatedValue as PointF
             // 更新坐标
@@ -555,12 +563,22 @@ class DoubleRealFlipView @JvmOverloads constructor(
         curAnimator = animator
     }
 
-    fun animNextPage() {
+    private fun animNextPage(isFullAnim: Boolean = true, touchX: Float = 0f, touchY: Float = 0f) {
         cancelAnimation()
-        val centerY = (mLeftPageLTPoint.y + mRightPageRBPoint.y) / 2
-        prepareOnDown(mRightPageRBPoint.x, centerY)
+        var starTouchY = (mLeftPageLTPoint.y + mRightPageRBPoint.y) / 2
+        var startTouchX = mRightPageRBPoint.x - 50
+        var endTouchY = (mLeftPageLTPoint.y + mRightPageRBPoint.y) / 2
+        val endTouchX = mLeftPageLTPoint.x + 20
+        if(isFullAnim) {
+            prepareOnDown(mRightPageRBPoint.x, endTouchY)
+            endTouchY += 6
+        } else {
+            startTouchX = touchX
+            starTouchY = touchY
+            endTouchY = mStartPoint.y
+        }
         prePareDirection(DIRECT_TL)
-        val animator = ValueAnimator.ofObject(PointTypeEvaluator(), PointF(mRightPageRBPoint.x - 100, centerY + 6), PointF(mLeftPageLTPoint.x + 100, centerY + 6))
+        val animator = ValueAnimator.ofObject(PointTypeEvaluator(), PointF(startTouchX, starTouchY), PointF(endTouchX , endTouchY))
         animator.addUpdateListener {
             val point = it.animatedValue as PointF
             // 更新坐标
@@ -586,15 +604,27 @@ class DoubleRealFlipView @JvmOverloads constructor(
         curAnimator = animator
     }
 
-    fun release(x: Float): Boolean {
+    fun release(x: Float, y: Float): Boolean {
         when(x) {
-            in mLeftPageLTPoint.x .. mLeftPageRBPoint.x -> {
+            in mLeftPageLTPoint.x .. (mLeftPageLTPoint.x + 100) -> {
                 if(flipPage == 1) {
                     pageFlipListener?.onNextPage()
                     return true
                 }
             }
-            in mRightPageLTPoint.x .. mRightPageRBPoint.x -> {
+            in mLeftPageLTPoint.x + 100 .. mLeftPageRBPoint.x -> {
+                if(flipPage == 1) {
+                    animNextPage(false, x, y)
+                    return true
+                }
+            }
+            in mRightPageLTPoint.x .. (mRightPageRBPoint.x - 100) -> {
+                if(flipPage == 0) {
+                    animPrePage(false, x, y)
+                    return true
+                }
+            }
+            in (mRightPageLTPoint.x - 100) .. mRightPageRBPoint.x -> {
                 if(flipPage == 0) {
                     pageFlipListener?.onPrePage()
                     return true
