@@ -1,15 +1,17 @@
 package com.example.myapplication
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
+import android.graphics.*
 import android.os.Bundle
 import android.util.DisplayMetrics
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.example.myapplication.view.DeviceUtil
 import com.example.myapplication.view.DoubleFlipView
 import com.example.myapplication.view.PageFlipListener
-import com.qidian.fonttest.view.DoubleRealFlipView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,22 +33,22 @@ class MainActivity : AppCompatActivity(), PageFlipListener {
         flipView = findViewById(R.id.flipView)
         flipView?.setPageFlipListener(this)
         lifecycleScope.launch(Dispatchers.IO) {
-            var firstBitmap = BitmapFactory.decodeResource(resources, R.drawable.dog_one, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+            var firstBitmap = createBitmapFirst(0)
             firstBitmap = adjustBitmap(firstBitmap)
             bimapArray[0] = firstBitmap
-            var twoBitmap = BitmapFactory.decodeResource(resources, R.drawable.dog_two, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+            var twoBitmap = createBitmapTwo(1)
             twoBitmap = adjustBitmap(twoBitmap)
             bimapArray[1] = twoBitmap
-            var threeBitmap = BitmapFactory.decodeResource(resources, R.drawable.dog_three, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+            var threeBitmap = createBitmapFirst(2)
             threeBitmap = adjustBitmap(threeBitmap)
             bimapArray[2] = threeBitmap
-            var fourBitmap = BitmapFactory.decodeResource(resources, R.drawable.dog_four, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+            var fourBitmap = createBitmapTwo(3)
             fourBitmap = adjustBitmap(fourBitmap)
             bimapArray[3] = fourBitmap
-            var fiveBitmap = BitmapFactory.decodeResource(resources, R.drawable.dog_five, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+            var fiveBitmap = createBitmapFirst(4)
             fiveBitmap = adjustBitmap(fiveBitmap)
             bimapArray[4] = fiveBitmap
-            var sixBitmap = BitmapFactory.decodeResource(resources, R.drawable.dog_six, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+            var sixBitmap = createBitmapTwo(5)
             sixBitmap = adjustBitmap(sixBitmap)
             bimapArray[5] = sixBitmap
 
@@ -105,5 +107,74 @@ class MainActivity : AppCompatActivity(), PageFlipListener {
         flipView?.reset()
         flipView?.invalidate()
     }
+
+    private fun createBitmapFirst(index: Int): Bitmap {
+        val root: View = LayoutInflater.from(this).inflate(R.layout.view_album_style_one, null, false)
+        val tvTitle = root.findViewById<TextView>(R.id.tvTitle)
+        val ivTop = root.findViewById<ImageView>(R.id.ivTop)
+        val ivBottom = root.findViewById<ImageView>(R.id.ivBottom)
+        when(index) {
+            0 -> {
+                tvTitle.text = "来鼋头渚吧！"
+                ivTop.setImageResource(R.drawable.ytz_b)
+                ivBottom.setImageResource(R.drawable.ytz_p)
+            }
+            2 -> {
+                tvTitle.text = "元宵城隍庙～"
+                ivTop.setImageResource(R.drawable.chm_j)
+                ivBottom.setImageResource(R.drawable.chm_p)
+            }
+            4 -> {
+                tvTitle.text = "外滩建筑"
+                ivTop.setImageResource(R.drawable.wt_p)
+                ivBottom.setImageResource(R.drawable.wt_h)
+            }
+        }
+
+        val margin = DeviceUtil.dip2px(this, 20f)
+        val targetWidth = DeviceUtil.getScreenWidth(this) / 2 - margin
+        val targetHeight = DeviceUtil.getScreenHeight(this) - margin
+        val measureWidth = View.MeasureSpec.makeMeasureSpec(targetWidth, View.MeasureSpec.EXACTLY)
+        val measureHeight = View.MeasureSpec.makeMeasureSpec(targetHeight, View.MeasureSpec.EXACTLY)
+        root.measure(measureWidth, measureHeight)
+        root.layout(0, 0, root.measuredWidth, root.measuredHeight)
+        val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+        root.draw(canvas)
+        return bitmap
+    }
+
+private fun createBitmapTwo(index: Int): Bitmap {
+    val root: View = LayoutInflater.from(this).inflate(R.layout.view_album_style_two, null, false)
+    val tvTitle = root.findViewById<TextView>(R.id.tvTitle)
+    val ivTop = root.findViewById<ImageView>(R.id.ivTop)
+    when(index) {
+        1 -> {
+            tvTitle.text = "记录张园"
+            ivTop.setImageResource(R.drawable.zy_p)
+        }
+        3 -> {
+            tvTitle.text = "唐镇随手拍"
+            ivTop.setImageResource(R.drawable.tz_j)
+        }
+        5 -> {
+            tvTitle.text = "张江微电子四号楼"
+            ivTop.setImageResource(R.drawable.zj_j)
+        }
+    }
+    val margin = DeviceUtil.dip2px(this, 20f)
+    val targetWidth = DeviceUtil.getScreenWidth(this) / 2 -  margin
+    val targetHeight = DeviceUtil.getScreenHeight(this) - margin
+    val measureWidth = View.MeasureSpec.makeMeasureSpec(targetWidth, View.MeasureSpec.EXACTLY)
+    val measureHeight = View.MeasureSpec.makeMeasureSpec(targetHeight, View.MeasureSpec.EXACTLY)
+    root.measure(measureWidth, measureHeight)
+    root.layout(0, 0, root.measuredWidth, root.measuredHeight)
+    val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    canvas.drawColor(Color.WHITE)
+    root.draw(canvas)
+    return bitmap
+}
 
 }

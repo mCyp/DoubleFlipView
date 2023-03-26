@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:gravity="center">
+
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        tools:text="春天的约会"
+        android:textSize="18sp"
+        />
+
+
+    <ImageView
+        android:id="@+id/ivTop"
+        android:layout_width="240dp"
+        android:layout_height="380dp"
+        android:scaleType="centerCrop"
+        android:layout_marginTop="20dp"
+        android:src="@drawable/zy_p"
+        />
+
+
+
+</LinearLayout>

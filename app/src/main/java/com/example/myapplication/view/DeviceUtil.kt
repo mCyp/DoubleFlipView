@@ -7,4 +7,12 @@ object DeviceUtil {
         val scale = context.resources.displayMetrics.density
         return (dp * scale + 0.5f).toInt()
     }
+
+    fun getScreenWidth(context: Context): Int {
+        return context.resources.displayMetrics.widthPixels
+    }
+
+    fun getScreenHeight(context: Context): Int {
+        return context.resources.displayMetrics.heightPixels
+    }
 }

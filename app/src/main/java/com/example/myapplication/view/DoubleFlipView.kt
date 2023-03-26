@@ -31,6 +31,7 @@ class DoubleFlipView @JvmOverloads constructor(
     private var status: Int = STATUS_NONE
     private val mGestureDetector: GestureDetectorCompat
     val mDoubleRealFlipView: DoubleRealFlipView
+    private var isTap: Boolean = false
 
 
     init {
@@ -42,25 +43,32 @@ class DoubleFlipView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
+        val result = mGestureDetector.onTouchEvent(event)
         event?.let { e->
             when(e.action) {
                 MotionEvent.ACTION_UP -> {
                     // 翻页或者取消翻页
                     status = STATUS_NONE
-                    if(!mDoubleRealFlipView.release(e.x, e.y)) {
-                        mDoubleRealFlipView.resetScrollTag()
+                    if(!isTap) {
+                        if(!mDoubleRealFlipView.release(e.x, e.y)) {
+                            mDoubleRealFlipView.resetScrollTag()
+                        }
+                        mDoubleRealFlipView.invalidate()
                     }
-                    mDoubleRealFlipView.invalidate()
+                    isTap = false
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     // 翻页
                     status = STATUS_NONE
-                    mDoubleRealFlipView.resetScrollTag()
-                    mDoubleRealFlipView.invalidate()
+                    if(!isTap) {
+                        mDoubleRealFlipView.resetScrollTag()
+                        mDoubleRealFlipView.invalidate()
+                    }
+                    isTap = false
                 }
             }
         }
-        return mGestureDetector.onTouchEvent(event)
+        return result
     }
 
     override fun onDown(e: MotionEvent): Boolean {
@@ -77,6 +85,7 @@ class DoubleFlipView @JvmOverloads constructor(
     override fun onSingleTapUp(e: MotionEvent?): Boolean {
         e?.let {
             mDoubleRealFlipView.onTap(it.x)
+            isTap = true
         }
         return true
     }
